@@ -1,0 +1,14 @@
+{
+  "name": "mahjong-soul-advisor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "基于日本立直麻将规则的手牌分析与切牌建议工具",
+  "scripts": {
+    "test": "node --test",
+    "serve": "python3 -m http.server 4173"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="日本立直麻将手牌分析、听牌枚举和切牌建议工具" />
+    <title>牌理研习室 · 日麻切牌助手</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#">牌理研习室 <span>RIICHI LAB</span></a>
+      <div class="status"><i></i> 本地计算 · 不上传牌谱</div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">MAHJONG SOUL PLAY COMPANION</p>
+          <h1>不只告诉你切哪张，<br /><em>还告诉你为什么。</em></h1>
+          <p class="lede">按日麻规则计算向听、有效牌和可和役种，再结合宝牌、对手立直与牌河信息，为当前巡目给出攻守建议。</p>
+        </div>
+        <div class="hero-card" aria-hidden="true">
+          <div class="mini-tile red">五<span>萬</span></div>
+          <div class="mini-tile">六<span>萬</span></div>
+          <div class="mini-tile">七<span>萬</span></div>
+          <div class="hero-metric"><strong>23</strong><span>枚有效牌</span></div>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <div class="panel input-panel">
+          <div class="panel-heading">
+            <div><span class="step">01</span><h2>录入当前手牌</h2></div>
+            <button id="load-demo" class="text-button">载入示例</button>
+          </div>
+
+          <div class="hand-stage">
+            <div class="stage-label"><span>手牌</span><b id="hand-count">0 张</b></div>
+            <div id="selected-hand" class="selected-hand empty" aria-live="polite">
+              <p>点击下方牌面添加手牌</p>
+            </div>
+          </div>
+
+          <div id="tile-picker" class="tile-picker"></div>
+
+          <details class="advanced-input">
+            <summary>使用牌谱记法快速输入</summary>
+            <div class="notation-row">
+              <input id="hand-notation" placeholder="例：123m456p789s12344z" spellcheck="false" />
+              <button id="apply-notation" class="secondary-button">应用</button>
+            </div>
+            <p>m=万、p=筒、s=索、z=字牌；0m/0p/0s 按红五处理。</p>
+          </details>
+
+          <div class="form-grid">
+            <label>
+              <span>副露（用空格分组）</span>
+              <input id="melds" placeholder="例：123m 777z" spellcheck="false" />
+            </label>
+            <label>
+              <span>宝牌指示牌</span>
+              <input id="dora" placeholder="例：4m 7z" spellcheck="false" />
+            </label>
+            <label>
+              <span>场风</span>
+              <select id="round-wind"><option value="1z">东场</option><option value="2z">南场</option></select>
+            </label>
+            <label>
+              <span>自风</span>
+              <select id="seat-wind"><option value="1z">东家</option><option value="2z">南家</option><option value="3z">西家</option><option value="4z">北家</option></select>
+            </label>
+          </div>
+
+          <div class="opponents">
+            <div class="section-title"><h3>对手牌河</h3><span>用于判断现物与筋</span></div>
+            <div class="opponent-grid">
+              <label><span>下家 <input type="checkbox" data-riichi="0" /> 立直</span><input data-river="0" placeholder="例：1m 4p 9s" /></label>
+              <label><span>对家 <input type="checkbox" data-riichi="1" /> 立直</span><input data-river="1" placeholder="例：2m 7p 1z" /></label>
+              <label><span>上家 <input type="checkbox" data-riichi="2" /> 立直</span><input data-river="2" placeholder="例：9m 3s 5z" /></label>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <div class="strategy-switch" role="group" aria-label="攻守策略">
+              <button data-strategy="attack">进攻</button>
+              <button data-strategy="balanced" class="active">均衡</button>
+              <button data-strategy="defense">防守</button>
+            </div>
+            <button id="analyze" class="primary-button">开始分析 <span>→</span></button>
+          </div>
+          <p id="error" class="error" role="alert"></p>
+        </div>
+
+        <aside class="guide panel">
+          <span class="guide-kicker">QUICK GUIDE</span>
+          <h2>如何使用</h2>
+          <ol>
+            <li><b>录入手牌</b><span>轮到你摸牌后录入 14 张状态；有副露时手牌张数相应减少。</span></li>
+            <li><b>补充局况</b><span>对手立直时录入牌河，防守建议才会识别现物和筋。</span></li>
+            <li><b>查看排序</b><span>建议先看向听是否后退，再比较有效牌数与放铳风险。</span></li>
+          </ol>
+          <div class="notation-help"><b>牌谱记法</b><code>123m 456p 789s 123z</code><small>字牌：1东 2南 3西 4北 5白 6发 7中</small></div>
+        </aside>
+      </section>
+
+      <section id="results" class="results hidden" aria-live="polite"></section>
+
+      <section class="principles">
+        <div><span>01</span><h3>牌效优先</h3><p>比较每个切牌候选的向听数、有效牌种类和剩余枚数。</p></div>
+        <div><span>02</span><h3>攻守一体</h3><p>有人立直时，现物、筋与字牌可见枚数会进入排序。</p></div>
+        <div><span>03</span><h3>解释透明</h3><p>每条建议展示计算依据，方便复盘而非盲从答案。</p></div>
+      </section>
+    </main>
+
+    <footer><span>牌理研习室</span><p>学习与复盘工具 · 不隶属于《雀魂》或其运营方</p></footer>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
