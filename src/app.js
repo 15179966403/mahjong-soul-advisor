@@ -8,12 +8,9 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 function tileFace(index, removable = false) {
-  const rank = index < 27 ? (index % 9) + 1 : '';
-  const suit = index < 9 ? '萬' : index < 18 ? '筒' : index < 27 ? '索' : '';
-  const honor = index >= 27 ? TILE_NAMES[index] : '';
-  const color = index >= 27 ? ` honor honor-${index}` : index < 9 ? ' man' : index < 18 ? ' pin' : ' sou';
-  return `<button class="tile${color}${removable ? ' removable' : ''}" data-tile="${index}" title="${TILE_NAMES[index]}">
-    <b>${honor || rank}</b>${suit ? `<small>${suit}</small>` : ''}${removable ? '<i>×</i>' : ''}
+  const code = TILE_CODES[index];
+  return `<button class="tile${removable ? ' removable' : ''}" data-tile="${index}" title="${TILE_NAMES[index]}" aria-label="${removable ? '移除' : '添加'}${TILE_NAMES[index]}">
+    <img src="./public/assets/tiles/${code}.png" alt="" draggable="false" />${removable ? '<i aria-hidden="true">×</i>' : ''}
   </button>`;
 }
 

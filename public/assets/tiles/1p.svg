@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 145" role="img" aria-labelledby="title-1p">
+  <title id="title-1p">一筒</title>
+  <g transform="translate(-1 1)" opacity=".96"><g transform="translate(47 71)">
+    <circle r="18" fill="none" stroke="#266b91" stroke-width="2.5"/>
+    <circle r="9.36" fill="none" stroke="#266b91" stroke-width="1.25"/>
+    <circle r="2.3" fill="#266b91"/>
+    <path d="M0-9.36V9.36M-9.36 0H9.36M-6.739199999999999-6.739199999999999L6.739199999999999 6.739199999999999M6.739199999999999-6.739199999999999L-6.739199999999999 6.739199999999999" stroke="#266b91" stroke-width=".7"/>
+  </g></g>
+</svg>

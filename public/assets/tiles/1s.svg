@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 145" role="img" aria-labelledby="title-1s">
+  <title id="title-1s">一索</title>
+  <g transform="translate(-1 1)" opacity=".96"><g transform="translate(47 72)">
+    <path d="M2-29C-4-21-3-12 3-5C-10-11-22-7-25 4C-13 2-5 6-1 15C-6 20-10 25-10 31M3-5C12-17 23-17 28-9C17-8 12-2 11 7C18 13 20 21 16 29C9 21 2 18-1 15" fill="none" stroke="#257152" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M3-5C8 2 7 11-1 15M7-19L15-25" fill="none" stroke="#bb352e" stroke-width="3.5" stroke-linecap="round"/>
+    <circle cx="9" cy="-20" r="2" fill="#266b91"/>
+  </g></g>
+</svg>
