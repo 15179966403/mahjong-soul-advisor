@@ -13,7 +13,7 @@
 - 录入三家牌河与立直状态后，识别现物、筋和字牌可见张数
 - 进攻、均衡、防守三种建议权重
 - 点击牌面和紧凑牌谱记法两种输入方式，适配手机屏幕
-- 34 种完整麻将牌图片，全部由 ImageGen 直接生成实体牌、传统雕刻纹样与自然旧化质感
+- 34 种标准日麻牌图片，采用社区维护的公有领域牌图资源
 - 零运行时依赖，所有计算在本地完成
 
 ## 快速开始
@@ -27,7 +27,7 @@ npm run serve
 
 然后打开 <http://localhost:4173>。也可以将目录放到任意静态网站服务中。
 
-麻将牌素材位于 `public/assets/tiles/`：网页直接使用 34 张带透明背景的低分辨率 PNG。每张素材都是由 ImageGen 生成的完整实体麻将牌，不再叠加字符、SVG 纹样或共用牌胚。
+麻将牌素材位于 `public/assets/tiles/`：网页直接使用 34 张带透明背景的低分辨率 PNG。牌胚与标准万、筒、索、字牌图案来自 [FluffyStuff/riichi-mahjong-tiles](https://github.com/FluffyStuff/riichi-mahjong-tiles)，原作者已将全部素材置于公有领域；本项目仅进行图层合成、文件命名与尺寸压缩。完整来源记录见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
 
 ## 输入规则
 
