@@ -13,8 +13,9 @@
 - 录入三家牌河与立直状态后，识别现物、筋和字牌可见张数
 - 进攻、均衡、防守三种建议权重
 - 点击牌面和紧凑牌谱记法两种输入方式，适配手机屏幕
+- 本机截图识别，支持文件选择、拖拽、剪贴板粘贴和导入前人工校对
 - 34 种标准日麻牌图片，采用社区维护的公有领域牌图资源
-- 零运行时依赖，所有计算在本地完成
+- 手动牌理分析零前端运行时依赖；截图识别通过本地 Python 服务完成
 
 ## 快速开始
 
@@ -26,6 +27,14 @@ npm run serve
 ```
 
 然后打开 <http://localhost:4173>。也可以将目录放到任意静态网站服务中。
+
+使用截图识别前，另开一个终端安装并启动本地服务：
+
+```bash
+source .venv/bin/activate
+python -m pip install -r backend/requirements.txt
+python -m backend.serve
+```
 
 麻将牌素材位于 `public/assets/tiles/`：网页直接使用 34 张带透明背景的低分辨率 PNG。牌胚与标准万、筒、索、字牌图案来自 [FluffyStuff/riichi-mahjong-tiles](https://github.com/FluffyStuff/riichi-mahjong-tiles)，原作者已将全部素材置于公有领域；本项目仅进行图层合成、文件命名与尺寸压缩。完整来源记录见 [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md)。
 
@@ -67,13 +76,14 @@ npm test
 index.html          页面结构
 src/app.js          交互与结果展示
 src/mahjong.js      纯函数牌理引擎
+src/recognition.js  截图 API、识别草稿与校对数据处理
 src/styles.css      响应式视觉样式
 backend/            本地截图识别核心与 HTTP API
 tests/              Node.js 单元测试
 ```
 
 截图识别后端提供离线命令行和仅监听本机的 HTTP API，环境和用法见
-[`backend/README.md`](./backend/README.md)。网页上传、校对和分析联调将在后续阶段接入。
+[`backend/README.md`](./backend/README.md)。网页支持截图选择、拖拽、粘贴、识别框预览和导入前人工校对；确认后才会替换当前手牌与三家对手牌河。
 
 ## 后续路线
 

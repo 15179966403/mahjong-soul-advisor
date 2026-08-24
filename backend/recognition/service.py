@@ -222,6 +222,17 @@ class RecognitionService:
                 "建议在校对界面确认"
             )
 
+        crop_consensus_corrections = [
+            tile
+            for tile in all_tiles
+            if tile.decision_source.startswith("center-crop-consensus")
+        ]
+        if crop_consensus_corrections:
+            warnings.append(
+                f"中心裁边复核修正了 {len(crop_consensus_corrections)} 张低置信度牌，"
+                "建议在校对界面确认"
+            )
+
         visible_counts = Counter(self._canonical_code(tile.code) for tile in all_tiles)
         impossible = sorted(code for code, count in visible_counts.items() if count > 4)
         if impossible:

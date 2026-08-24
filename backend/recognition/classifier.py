@@ -43,6 +43,11 @@ RED_FIVE_LABELS = {
 
 NON_TILE_LABELS = {"x", "bg", "background", "unknown"}
 
+CENTER_CROP_TRIGGER_CONFIDENCE = 0.35
+CENTER_CROP_RATIOS = (0.04, 0.08, 0.12)
+CENTER_CROP_MIN_CONFIDENCE = 0.30
+CENTER_CROP_MIN_GAIN = 0.08
+
 
 def normalize_tile_code(label: str) -> Optional[str]:
     """Convert checkpoint labels to advisor notation.
@@ -148,8 +153,16 @@ class TileClassifier:
             probabilities = torch.softmax(logits, dim=1)
             confidence, indices = probabilities.max(dim=1)
 
+        crop_consensus = self._center_crop_consensus(
+            images,
+            indices.tolist(),
+            confidence.tolist(),
+        )
+
         results: List[ClassPrediction] = []
-        for image, index, score in zip(images, indices.tolist(), confidence.tolist()):
+        for position, (image, index, score) in enumerate(
+            zip(images, indices.tolist(), confidence.tolist())
+        ):
             model_code = self.classes[index]
             final_code = model_code
             final_confidence = float(score)
@@ -158,22 +171,37 @@ class TileClassifier:
             structure_confidence = None
             structure_votes: Tuple[int, ...] = ()
 
-            if model_code is not None and model_code.endswith("p"):
+            consensus = crop_consensus.get(position)
+            if consensus is not None:
+                consensus_index, consensus_confidence = consensus
+                final_code = self.classes[consensus_index]
+                final_confidence = consensus_confidence
+                decision_source = "center-crop-consensus"
+
+            # The 1p artwork contains several nested decorative rings. The
+            # generic small-pip Hough counter sees those rings as separate
+            # circles, so a confident 1p model decision must not be replaced
+            # by the 2p-9p structural helper.
+            if (
+                final_code is not None
+                and final_code.endswith("p")
+                and final_code != "1p"
+            ):
                 structure = self.pin_counter.predict(image)
                 if structure is not None:
                     circle_count = structure.circle_count
                     structure_confidence = structure.confidence
                     structure_votes = structure.votes
                     structure_code = f"{structure.circle_count}p"
-                    if model_code == "0p" and structure.circle_count == 5:
+                    if final_code == "0p" and structure.circle_count == 5:
                         structure_code = "0p"
-                    if structure_code != model_code:
+                    if structure_code != final_code:
                         final_code = structure_code
                         final_confidence = structure.confidence
                         decision_source = "pin-circle-count"
                     else:
                         final_confidence = max(final_confidence, structure.confidence)
-                        decision_source = "model+pin-circle-count"
+                        decision_source = f"{decision_source}+pin-circle-count"
 
             results.append(
                 ClassPrediction(
@@ -189,6 +217,71 @@ class TileClassifier:
                 )
             )
         return results
+
+    def _center_crop_consensus(
+        self,
+        images: Sequence[np.ndarray],
+        original_indices: Sequence[int],
+        original_confidences: Sequence[float],
+    ) -> dict[int, Tuple[int, float]]:
+        """Retry very uncertain crops after removing narrow side borders.
+
+        River tiles have small perspective and segmentation differences between
+        seats. Stretching a slightly wider crop to 64x64 can change the shape of
+        dense characters such as 4m. A correction is accepted only when all
+        three centered crops agree, beat the original result by a meaningful
+        margin and still remain visible as low confidence to the review UI.
+        """
+
+        uncertain_positions = [
+            position
+            for position, (index, score) in enumerate(
+                zip(original_indices, original_confidences)
+            )
+            if score < CENTER_CROP_TRIGGER_CONFIDENCE
+            and self.classes[index] is not None
+        ]
+        if not uncertain_positions:
+            return {}
+
+        variant_tensors: List[torch.Tensor] = []
+        for position in uncertain_positions:
+            image = images[position]
+            height, width = image.shape[:2]
+            for ratio in CENTER_CROP_RATIOS:
+                removed_width = max(1, int(round(width * ratio)))
+                if width - removed_width * 2 < 4:
+                    variant = image
+                else:
+                    variant = image[:height, removed_width:width - removed_width]
+                variant_tensors.append(self._prepare_image(variant))
+
+        inputs = torch.stack(variant_tensors).to(self.device)
+        with torch.inference_mode():
+            probabilities = torch.softmax(self.model(inputs), dim=1)
+
+        corrections: dict[int, Tuple[int, float]] = {}
+        variants_per_image = len(CENTER_CROP_RATIOS)
+        for group_index, position in enumerate(uncertain_positions):
+            start = group_index * variants_per_image
+            group = probabilities[start:start + variants_per_image]
+            votes = group.argmax(dim=1).tolist()
+            if len(set(votes)) != 1:
+                continue
+
+            consensus_index = int(votes[0])
+            consensus_code = self.classes[consensus_index]
+            if consensus_code is None or consensus_index == original_indices[position]:
+                continue
+
+            consensus_confidence = float(group[:, consensus_index].mean().item())
+            original_confidence = float(original_confidences[position])
+            if (
+                consensus_confidence >= CENTER_CROP_MIN_CONFIDENCE
+                and consensus_confidence >= original_confidence + CENTER_CROP_MIN_GAIN
+            ):
+                corrections[position] = (consensus_index, consensus_confidence)
+        return corrections
 
     def _prepare_image(self, image: np.ndarray) -> torch.Tensor:
         if image is None or image.size == 0:

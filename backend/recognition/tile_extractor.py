@@ -35,9 +35,9 @@ class RiverRegion:
 
 RIVER_REGIONS: Sequence[RiverRegion] = (
     RiverRegion("self", (306, 494, 185, 180), None),
-    RiverRegion("right", (486, 290, 180, 207), "clockwise"),
+    RiverRegion("right", (455, 275, 200, 235), "clockwise"),
     RiverRegion("opposite", (307, 119, 185, 180), "180"),
-    RiverRegion("left", (129, 295, 180, 207), "counterclockwise"),
+    RiverRegion("left", (145, 275, 200, 235), "counterclockwise"),
 )
 
 

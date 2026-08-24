@@ -35,6 +35,53 @@
             <button id="load-demo" class="text-button">载入示例</button>
           </div>
 
+          <section class="recognition-panel" aria-labelledby="recognition-title">
+            <div class="recognition-heading">
+              <div>
+                <span class="recognition-kicker">SCREENSHOT ASSIST</span>
+                <h3 id="recognition-title">从雀魂截图识别</h3>
+              </div>
+              <button id="recognition-health" class="service-status checking" type="button">
+                <i aria-hidden="true"></i><span>正在检查本地服务</span>
+              </button>
+            </div>
+            <p class="recognition-intro">截图只发送到本机识别服务。识别结果会先进入校对区，确认前不会修改当前手牌和牌河。</p>
+
+            <div id="screenshot-dropzone" class="screenshot-dropzone" role="button" tabindex="0" aria-describedby="dropzone-help">
+              <input id="screenshot-file" type="file" accept="image/png,image/jpeg,image/webp" hidden />
+              <div class="dropzone-mark" aria-hidden="true">⌁</div>
+              <div><b>拖入完整对局截图</b><span id="dropzone-help">也可以选择文件，或直接粘贴剪贴板图片</span></div>
+              <button id="choose-screenshot" class="secondary-button" type="button">选择截图</button>
+            </div>
+
+            <div id="recognition-progress" class="recognition-progress hidden" aria-live="polite">
+              <span class="recognition-spinner" aria-hidden="true"></span>
+              <div><b id="recognition-progress-title">正在识别截图</b><span id="recognition-progress-copy">牌桌定位、切割与分类可能需要几秒</span></div>
+              <button id="cancel-recognition" class="text-button" type="button">取消</button>
+            </div>
+            <p id="recognition-error" class="recognition-error" role="alert"></p>
+
+            <div id="recognition-review" class="recognition-review hidden">
+              <div class="review-summary">
+                <div><span>REVIEW BEFORE IMPORT</span><h3>检查识别结果</h3></div>
+                <div id="recognition-metrics" class="recognition-metrics"></div>
+              </div>
+              <div class="recognition-layout">
+                <div>
+                  <div id="recognition-preview" class="recognition-preview"></div>
+                  <p class="preview-help">原图框仅对应自动识别的牌；手动补充的牌不会生成识别框。</p>
+                </div>
+                <div id="recognition-diagnostics" class="recognition-diagnostics"></div>
+              </div>
+              <div id="recognition-zones" class="recognition-zones"></div>
+              <div class="recognition-actions">
+                <button id="discard-recognition" class="secondary-button" type="button">放弃本次结果</button>
+                <p>确认时会替换当前手牌和三家对手牌河；自家牌河暂只用于校对展示。</p>
+                <button id="apply-recognition" class="primary-button" type="button">确认并导入 <span>→</span></button>
+              </div>
+            </div>
+          </section>
+
           <div class="hand-stage">
             <div class="stage-label"><span>手牌</span><b id="hand-count">0 张</b></div>
             <div id="selected-hand" class="selected-hand empty" aria-live="polite">
