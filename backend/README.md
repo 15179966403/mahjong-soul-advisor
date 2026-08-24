@@ -48,7 +48,7 @@ python -m backend.recognize /absolute/path/to/screenshot.png \
 
 ## 本地识别 API
 
-启动服务：
+在项目根目录执行 `npm run dev` 可以同时启动网页和本地识别 API；命令会等待模型健康检查通过后再显示“服务已准备完成”。只启动 API 时使用：
 
 ```bash
 python -m backend.serve
@@ -148,3 +148,11 @@ python -m backend.training.train_spatial \
 训练并验证完成前，正式识别仍使用 `backend/models/best_model.pt`。不要用未经验证的新权重覆盖现有模型。
 
 模型来自 AutoMajsoul，来源和许可见根目录 `THIRD_PARTY_NOTICES.md` 以及 `backend/third_party/AutoMajsoul-LICENSE.txt`。
+
+## 检查
+
+在项目根目录运行 `npm run check` 会统一执行浏览器端测试、识别后端测试和前后端语法检查。只运行后端核心测试时使用：
+
+```bash
+npm run test:backend
+```

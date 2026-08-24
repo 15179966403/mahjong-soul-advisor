@@ -174,14 +174,20 @@ export function draftDiagnostics(draft) {
 }
 
 export function codesToCounts(codes) {
+  return codesToTileState(codes).counts;
+}
+
+export function codesToTileState(codes) {
   const counts = Array(34).fill(0);
+  const redFives = Array(34).fill(0);
   for (const code of codes) {
     const index = tileIndex(code);
     if (index < 0) throw new Error(`无效牌：${code}`);
     counts[index] += 1;
     if (counts[index] > 4) throw new Error(`${TILE_NAMES[index]}超过 4 张`);
+    if (code.startsWith('0')) redFives[index] += 1;
   }
-  return counts;
+  return { counts, redFives };
 }
 
 export function inferMediaType(file) {

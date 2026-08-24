@@ -48,6 +48,11 @@ CENTER_CROP_RATIOS = (0.04, 0.08, 0.12)
 CENTER_CROP_MIN_CONFIDENCE = 0.30
 CENTER_CROP_MIN_GAIN = 0.08
 
+VERTICAL_CROP_TRIGGER_CONFIDENCE = 0.35
+VERTICAL_CROP_VARIANTS = (("top", 0.08), ("bottom", 0.08), ("bottom", 0.15))
+VERTICAL_CROP_MIN_CONFIDENCE = 0.30
+VERTICAL_CROP_MIN_GAIN = 0.08
+
 
 def normalize_tile_code(label: str) -> Optional[str]:
     """Convert checkpoint labels to advisor notation.
@@ -158,6 +163,12 @@ class TileClassifier:
             indices.tolist(),
             confidence.tolist(),
         )
+        vertical_consensus = self._vertical_crop_consensus(
+            images,
+            indices.tolist(),
+            confidence.tolist(),
+            excluded_positions=set(crop_consensus),
+        )
 
         results: List[ClassPrediction] = []
         for position, (image, index, score) in enumerate(
@@ -177,6 +188,13 @@ class TileClassifier:
                 final_code = self.classes[consensus_index]
                 final_confidence = consensus_confidence
                 decision_source = "center-crop-consensus"
+
+            consensus = vertical_consensus.get(position)
+            if consensus is not None:
+                consensus_index, consensus_confidence = consensus
+                final_code = self.classes[consensus_index]
+                final_confidence = consensus_confidence
+                decision_source = "vertical-crop-consensus"
 
             # The 1p artwork contains several nested decorative rings. The
             # generic small-pip Hough counter sees those rings as separate
@@ -279,6 +297,81 @@ class TileClassifier:
             if (
                 consensus_confidence >= CENTER_CROP_MIN_CONFIDENCE
                 and consensus_confidence >= original_confidence + CENTER_CROP_MIN_GAIN
+            ):
+                corrections[position] = (consensus_index, consensus_confidence)
+        return corrections
+
+    def _vertical_crop_consensus(
+        self,
+        images: Sequence[np.ndarray],
+        original_indices: Sequence[int],
+        original_confidences: Sequence[float],
+        excluded_positions: set[int],
+    ) -> dict[int, Tuple[int, float]]:
+        """Retry uncertain manzu crops after removing narrow top/bottom borders.
+
+        Some hand-tile crops contain a little more frame above or below the
+        artwork. The legacy model stretches that frame together with the tile
+        face and can confuse dense manzu characters. This fallback is kept
+        deliberately narrow: it runs only for low-confidence manzu results not
+        already fixed by the side-crop consensus, and all three variants must
+        agree on another manzu class before a correction is accepted.
+        """
+
+        uncertain_positions = [
+            position
+            for position, (index, score) in enumerate(
+                zip(original_indices, original_confidences)
+            )
+            if position not in excluded_positions
+            and score < VERTICAL_CROP_TRIGGER_CONFIDENCE
+            and self.classes[index] is not None
+            and self.classes[index].endswith("m")
+        ]
+        if not uncertain_positions:
+            return {}
+
+        variant_tensors: List[torch.Tensor] = []
+        for position in uncertain_positions:
+            image = images[position]
+            height, width = image.shape[:2]
+            for edge, ratio in VERTICAL_CROP_VARIANTS:
+                removed_height = max(1, int(round(height * ratio)))
+                if height - removed_height < 4:
+                    variant = image
+                elif edge == "top":
+                    variant = image[removed_height:height, :width]
+                else:
+                    variant = image[:height - removed_height, :width]
+                variant_tensors.append(self._prepare_image(variant))
+
+        inputs = torch.stack(variant_tensors).to(self.device)
+        with torch.inference_mode():
+            probabilities = torch.softmax(self.model(inputs), dim=1)
+
+        corrections: dict[int, Tuple[int, float]] = {}
+        variants_per_image = len(VERTICAL_CROP_VARIANTS)
+        for group_index, position in enumerate(uncertain_positions):
+            start = group_index * variants_per_image
+            group = probabilities[start:start + variants_per_image]
+            votes = group.argmax(dim=1).tolist()
+            if len(set(votes)) != 1:
+                continue
+
+            consensus_index = int(votes[0])
+            consensus_code = self.classes[consensus_index]
+            if (
+                consensus_code is None
+                or not consensus_code.endswith("m")
+                or consensus_index == original_indices[position]
+            ):
+                continue
+
+            consensus_confidence = float(group[:, consensus_index].mean().item())
+            original_confidence = float(original_confidences[position])
+            if (
+                consensus_confidence >= VERTICAL_CROP_MIN_CONFIDENCE
+                and consensus_confidence >= original_confidence + VERTICAL_CROP_MIN_GAIN
             ):
                 corrections[position] = (consensus_index, consensus_confidence)
         return corrections

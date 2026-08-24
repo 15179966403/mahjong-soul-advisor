@@ -76,7 +76,7 @@
               <div id="recognition-zones" class="recognition-zones"></div>
               <div class="recognition-actions">
                 <button id="discard-recognition" class="secondary-button" type="button">放弃本次结果</button>
-                <p>确认时会替换当前手牌和三家对手牌河；自家牌河暂只用于校对展示。</p>
+                <p>确认时会替换当前手牌和四家牌河；自家牌河只参与可见牌统计，不参与对手危险度判断。</p>
                 <button id="apply-recognition" class="primary-button" type="button">确认并导入 <span>→</span></button>
               </div>
             </div>
@@ -120,12 +120,14 @@
           </div>
 
           <div class="opponents">
-            <div class="section-title"><h3>对手牌河</h3><span>用于判断现物与筋</span></div>
+            <div class="section-title"><h3>四家牌河</h3><span>共同用于可见牌统计</span></div>
+            <label class="self-river"><span>自家牌河</span><input data-river="self" placeholder="例：3m 7p 1z" /></label>
             <div class="opponent-grid">
-              <label><span>下家 <input type="checkbox" data-riichi="0" /> 立直</span><input data-river="0" placeholder="例：1m 4p 9s" /></label>
-              <label><span>对家 <input type="checkbox" data-riichi="1" /> 立直</span><input data-river="1" placeholder="例：2m 7p 1z" /></label>
-              <label><span>上家 <input type="checkbox" data-riichi="2" /> 立直</span><input data-river="2" placeholder="例：9m 3s 5z" /></label>
+              <label><span>下家 <input type="checkbox" data-riichi="right" /> 立直</span><input data-river="right" placeholder="例：1m 4p 9s" /></label>
+              <label><span>对家 <input type="checkbox" data-riichi="opposite" /> 立直</span><input data-river="opposite" placeholder="例：2m 7p 1z" /></label>
+              <label><span>上家 <input type="checkbox" data-riichi="left" /> 立直</span><input data-river="left" placeholder="例：9m 3s 5z" /></label>
             </div>
+            <p class="river-help">自家牌河会扣减有效牌剩余枚数；只有立直对手的牌河用于判断现物与筋。</p>
           </div>
 
           <div class="action-row">

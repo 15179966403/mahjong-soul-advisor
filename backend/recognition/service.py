@@ -225,11 +225,11 @@ class RecognitionService:
         crop_consensus_corrections = [
             tile
             for tile in all_tiles
-            if tile.decision_source.startswith("center-crop-consensus")
+            if "crop-consensus" in tile.decision_source
         ]
         if crop_consensus_corrections:
             warnings.append(
-                f"中心裁边复核修正了 {len(crop_consensus_corrections)} 张低置信度牌，"
+                f"边缘裁切复核修正了 {len(crop_consensus_corrections)} 张低置信度牌，"
                 "建议在校对界面确认"
             )
 

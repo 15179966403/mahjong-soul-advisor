@@ -1,18 +1,26 @@
 import {
-  TILE_CODES, TILE_NAMES, analyzeHand, countsToNotation, countsToTiles,
-  parseMeld, parseTiles, tileIndex,
+  TILE_CODES, TILE_NAMES, analyzeHand, countsToTiles, parseMeld,
+  parseTileState, parseTiles, tileIndex, tileStateToNotation,
 } from './mahjong.js';
 import {
   LOW_CONFIDENCE_THRESHOLD, RecognitionApiClient, RecognitionApiError,
-  addDraftTile, allDraftTiles, codesToCounts, draftDiagnostics,
+  addDraftTile, allDraftTiles, codesToTileState, draftDiagnostics,
   recognitionTileOptions, removeDraftTile, replaceDraftTile, tileAssetCode,
   tileNameForCode,
 } from './recognition.js';
 
-const state = { hand: Array(34).fill(0), strategy: 'balanced' };
+const state = {
+  hand: Array(34).fill(0),
+  redFives: Array(34).fill(0),
+  strategy: 'balanced',
+};
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+const RIVER_POSITIONS = ['self', 'right', 'opposite', 'left'];
+const OPPONENT_POSITIONS = ['right', 'opposite', 'left'];
+const RECOGNITION_BROWSER_TIMEOUT_MS = 50_000;
 const recognitionClient = new RecognitionApiClient();
+let recognitionHealthRetryTimer = 0;
 const recognitionState = {
   draft: null,
   file: null,
@@ -52,7 +60,13 @@ function setHealthState(kind, label) {
   button.querySelector('span').textContent = label;
 }
 
-async function checkRecognitionHealth() {
+async function checkRecognitionHealth({ retry = true } = {}) {
+  window.clearTimeout(recognitionHealthRetryTimer);
+  recognitionHealthRetryTimer = 0;
+  if (window.location.protocol === 'file:') {
+    setHealthState('offline', '请通过 npm run dev 打开页面');
+    return;
+  }
   setHealthState('checking', '正在检查本地服务');
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 4000);
@@ -61,7 +75,15 @@ async function checkRecognitionHealth() {
     const device = result.model && result.model.device ? ` · ${result.model.device}` : '';
     setHealthState('online', `本地服务已连接${device}`);
   } catch {
-    setHealthState('offline', '本地服务未连接 · 点击重试');
+    if (retry) {
+      setHealthState('checking', '识别服务正在启动 · 自动重试');
+      recognitionHealthRetryTimer = window.setTimeout(
+        () => checkRecognitionHealth({ retry: false }),
+        1500,
+      );
+    } else {
+      setHealthState('offline', '本地服务未连接 · 点击重试');
+    }
   } finally {
     window.clearTimeout(timer);
   }
@@ -178,6 +200,11 @@ async function recognizeScreenshot(file) {
   releaseRecognitionPreview();
   recognitionState.previewUrl = URL.createObjectURL(file);
   recognitionState.draft = null;
+  let timedOut = false;
+  const timeout = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, RECOGNITION_BROWSER_TIMEOUT_MS);
   $('#recognition-review').classList.add('hidden');
   setRecognitionNotice();
   setRecognitionProgress(true, '正在识别截图', '牌桌定位、切割与分类可能需要几秒');
@@ -199,11 +226,15 @@ async function recognizeScreenshot(file) {
     );
     $('#recognition-review').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (error) {
-    if (error.name !== 'AbortError') {
+    if (timedOut) {
+      setRecognitionNotice('截图识别超过 50 秒，请确认本地服务仍在运行后重试。');
+      setHealthState('offline', '识别请求超时 · 点击检查服务');
+    } else if (error.name !== 'AbortError') {
       setRecognitionNotice(recognitionErrorMessage(error));
       if (error instanceof TypeError) setHealthState('offline', '本地服务未连接 · 点击重试');
     }
   } finally {
+    window.clearTimeout(timeout);
     if (recognitionState.controller === controller) {
       recognitionState.controller = null;
       setRecognitionProgress(false);
@@ -233,16 +264,13 @@ function applyRecognitionDraft() {
     }
     const hasExistingInput = state.hand.some(Boolean)
       || $$('[data-river]').some((input) => input.value.trim());
-    if (hasExistingInput && !window.confirm('确认用识别草稿替换当前手牌和三家对手牌河吗？')) return;
+    if (hasExistingInput && !window.confirm('确认用识别草稿替换当前手牌和四家牌河吗？')) return;
 
-    state.hand = codesToCounts(draft.hand.map((tile) => tile.code));
-    const riverMapping = [
-      ['right', 0],
-      ['opposite', 1],
-      ['left', 2],
-    ];
-    for (const [position, index] of riverMapping) {
-      $(`[data-river="${index}"]`).value = draft.rivers[position]
+    const handState = codesToTileState(draft.hand.map((tile) => tile.code));
+    state.hand = handState.counts;
+    state.redFives = handState.redFives;
+    for (const position of RIVER_POSITIONS) {
+      $(`[data-river="${position}"]`).value = draft.rivers[position]
         .map((tile) => tile.code)
         .join(' ');
     }
@@ -256,10 +284,11 @@ function applyRecognitionDraft() {
   }
 }
 
-function tileFace(index, removable = false) {
+function tileFace(index, removable = false, red = false) {
   const code = TILE_CODES[index];
-  return `<button class="tile${removable ? ' removable' : ''}" data-tile="${index}" title="${TILE_NAMES[index]}" aria-label="${removable ? '移除' : '添加'}${TILE_NAMES[index]}">
-    <img src="./public/assets/tiles/${code}.png" alt="" draggable="false" />${removable ? '<i aria-hidden="true">×</i>' : ''}
+  const name = `${red ? '赤' : ''}${TILE_NAMES[index]}`;
+  return `<button class="tile${removable ? ' removable' : ''}" data-tile="${index}" data-red="${red ? '1' : '0'}" title="${name}" aria-label="${removable ? '移除' : '添加'}${name}">
+    <img src="./public/assets/tiles/${code}.png" alt="" draggable="false" />${red ? '<b class="red-five-badge">赤</b>' : ''}${removable ? '<i aria-hidden="true">×</i>' : ''}
   </button>`;
 }
 
@@ -273,12 +302,22 @@ function renderPicker() {
 }
 
 function renderHand() {
-  const tiles = countsToTiles(state.hand);
+  const tiles = state.hand.flatMap((count, index) => {
+    const redCount = state.redFives[index] || 0;
+    return [
+      ...Array(redCount).fill({ index, red: true }),
+      ...Array(count - redCount).fill({ index, red: false }),
+    ];
+  });
   $('#hand-count').textContent = `${tiles.length} 张`;
   $('#selected-hand').classList.toggle('empty', !tiles.length);
-  $('#selected-hand').innerHTML = tiles.length ? tiles.map((tile) => tileFace(tile, true)).join('') : '<p>点击下方牌面添加手牌</p>';
-  $('#hand-notation').value = countsToNotation(state.hand);
-  $$('#selected-hand .tile').forEach((button) => button.addEventListener('click', () => removeTile(Number(button.dataset.tile))));
+  $('#selected-hand').innerHTML = tiles.length
+    ? tiles.map((tile) => tileFace(tile.index, true, tile.red)).join('')
+    : '<p>点击下方牌面添加手牌</p>';
+  $('#hand-notation').value = tileStateToNotation(state.hand, state.redFives);
+  $$('#selected-hand .tile').forEach((button) => button.addEventListener('click', () => (
+    removeTile(Number(button.dataset.tile), button.dataset.red === '1')
+  )));
 }
 
 function addTile(index) {
@@ -288,8 +327,11 @@ function addTile(index) {
   renderHand();
 }
 
-function removeTile(index) {
-  if (state.hand[index]) state.hand[index] -= 1;
+function removeTile(index, red = false) {
+  if (state.hand[index]) {
+    state.hand[index] -= 1;
+    if (red && state.redFives[index]) state.redFives[index] -= 1;
+  }
   renderHand();
 }
 
@@ -309,10 +351,16 @@ function getInput() {
   const total = state.hand.reduce((a, b) => a + b, 0);
   if (!expected.includes(total)) throw new Error(`有 ${openMelds.length} 组副露时，请录入 ${expected[0]} 张（等待摸牌）或 ${expected[1]} 张（轮到切牌）；当前为 ${total} 张`);
   const doraIndicators = parseLooseTiles($('#dora').value);
-  const discards = $$('[data-river]').map((input) => parseLooseTiles(input.value));
-  const riichi = $$('[data-riichi]').map((input) => input.checked);
+  const selfDiscards = parseLooseTiles($('[data-river="self"]').value);
+  const discards = OPPONENT_POSITIONS.map((position) => (
+    parseLooseTiles($(`[data-river="${position}"]`).value)
+  ));
+  const riichi = OPPONENT_POSITIONS.map((position) => (
+    $(`[data-riichi="${position}"]`).checked
+  ));
   return {
-    concealed: [...state.hand], openMelds, doraIndicators, discards, riichi,
+    concealed: [...state.hand], redFives: [...state.redFives], openMelds,
+    doraIndicators, selfDiscards, discards, riichi,
     strategy: state.strategy,
     context: {
       roundWind: tileIndex($('#round-wind').value),
@@ -336,6 +384,7 @@ function suggestionReason(item, index) {
   const parts = [`切后${shantenLabel(item.nextShanten)}`, `${item.ukeire} 枚有效牌`];
   if (item.safety !== '无人立直') parts.push(item.safety);
   if (item.doraLoss) parts.push('会损失宝牌');
+  if (item.redFiveLoss) parts.push('会损失赤五');
   if (index === 0) parts.push('综合得分最高');
   return parts.join(' · ');
 }
@@ -348,7 +397,7 @@ function renderResults(result, input) {
     : `<div class="result-card wide"><div class="card-label">有效牌</div>${tileStrip(result.effective)}<p class="card-note">摸到以上牌会降低向听数；枚数已扣除手牌、副露和已录入牌河中的可见牌。</p></div>`;
 
   const suggestions = result.drawState
-    ? `<div class="suggestions"><div class="section-head"><div><span>DISCARD RANKING</span><h2>切牌建议</h2></div><p>综合牌效、宝牌与${threatCount ? '放铳风险' : '当前攻守策略'}排序</p></div>${result.suggestions.slice(0, 6).map((item, index) => `<article class="suggestion ${index === 0 ? 'best' : ''}"><div class="rank">${String(index + 1).padStart(2, '0')}</div><div class="discard-face">${tileFace(item.discard)}</div><div class="suggest-main"><h3>切 ${TILE_NAMES[item.discard]} ${index === 0 ? '<span>推荐</span>' : ''}</h3><p>${suggestionReason(item, index)}</p><div>${tileStrip(item.waits.slice(0, 12))}</div></div><div class="stats"><div><b>${shantenLabel(item.nextShanten)}</b><span>切后进度</span></div><div><b>${item.ukeire}</b><span>有效枚数</span></div><div class="${item.danger > 35 ? 'danger' : ''}"><b>${threatCount ? Math.round(item.danger) : '—'}</b><span>危险指数</span></div></div></article>`).join('')}</div>`
+    ? `<div class="suggestions"><div class="section-head"><div><span>DISCARD RANKING</span><h2>切牌建议</h2></div><p>综合牌效、宝牌与${threatCount ? '放铳风险' : '当前攻守策略'}排序</p></div>${result.suggestions.slice(0, 6).map((item, index) => `<article class="suggestion ${index === 0 ? 'best' : ''}"><div class="rank">${String(index + 1).padStart(2, '0')}</div><div class="discard-face">${tileFace(item.discard, false, item.redFiveLoss > 0)}</div><div class="suggest-main"><h3>切 ${item.redFiveLoss ? '赤' : ''}${TILE_NAMES[item.discard]} ${index === 0 ? '<span>推荐</span>' : ''}</h3><p>${suggestionReason(item, index)}</p><div>${tileStrip(item.waits.slice(0, 12))}</div></div><div class="stats"><div><b>${shantenLabel(item.nextShanten)}</b><span>切后进度</span></div><div><b>${item.ukeire}</b><span>有效枚数</span></div><div class="${item.danger > 35 ? 'danger' : ''}"><b>${threatCount ? Math.round(item.danger) : '—'}</b><span>危险指数</span></div></div></article>`).join('')}</div>`
     : `<div class="waiting-note"><b>当前是 ${13 - input.openMelds.length * 3} 张等待摸牌状态</b><span>上方展示有效牌；摸牌后再分析即可获得逐张切牌排序。</span></div>`;
 
   $('#results').innerHTML = `<div class="result-summary"><div><span>CURRENT SHANTEN</span><strong>${shantenLabel(result.shanten)}</strong></div><div><span>EFFECTIVE TILES</span><strong>${totalEffective}<small> 枚</small></strong></div><div><span>OPEN MELDS</span><strong>${input.openMelds.length}<small> 组</small></strong></div><div><span>RIICHI THREATS</span><strong>${threatCount}<small> 家</small></strong></div></div><div class="result-grid">${winContent}</div>${suggestions}`;
@@ -368,16 +417,26 @@ function analyze() {
 }
 
 $('#apply-notation').addEventListener('click', () => {
-  try { state.hand = parseTiles($('#hand-notation').value); $('#error').textContent = ''; renderHand(); }
+  try {
+    const parsed = parseTileState($('#hand-notation').value);
+    state.hand = parsed.counts;
+    state.redFives = parsed.redFives;
+    $('#error').textContent = '';
+    renderHand();
+  }
   catch (error) { $('#error').textContent = error.message; }
 });
 
 $('#load-demo').addEventListener('click', () => {
   state.hand = parseTiles('235677m345p23789s');
+  state.redFives = Array(34).fill(0);
   $('#dora').value = '4m';
   $('#melds').value = '';
-  $$('[data-river]').forEach((input, i) => { input.value = ['1m 9p 1z', '4m 6p 9s 2z', '2p 8s 5z'][i]; });
-  $$('[data-riichi]').forEach((input, i) => { input.checked = i === 1; });
+  const demoRivers = {
+    self: '3m 7p', right: '1m 9p 1z', opposite: '4m 6p 9s 2z', left: '2p 8s 5z',
+  };
+  RIVER_POSITIONS.forEach((position) => { $(`[data-river="${position}"]`).value = demoRivers[position]; });
+  OPPONENT_POSITIONS.forEach((position, index) => { $(`[data-riichi="${position}"]`).checked = index === 1; });
   renderHand();
   analyze();
 });
@@ -388,7 +447,7 @@ $$('[data-strategy]').forEach((button) => button.addEventListener('click', () =>
 }));
 $('#analyze').addEventListener('click', analyze);
 
-$('#recognition-health').addEventListener('click', checkRecognitionHealth);
+$('#recognition-health').addEventListener('click', () => checkRecognitionHealth());
 $('#choose-screenshot').addEventListener('click', (event) => {
   event.stopPropagation();
   $('#screenshot-file').click();

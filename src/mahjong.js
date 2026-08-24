@@ -25,8 +25,9 @@ export function tileIndex(code) {
   return rank >= 1 && rank <= limit ? offset + rank - 1 : -1;
 }
 
-export function parseTiles(input = '') {
+export function parseTileState(input = '') {
   const counts = Array(34).fill(0);
+  const redFives = Array(34).fill(0);
   const normalized = input.toLowerCase().replace(/[\s,，、|]/g, '');
   let digits = '';
   for (const char of normalized) {
@@ -40,6 +41,7 @@ export function parseTiles(input = '') {
         if (index < 0) throw new Error(`无效牌：${digit}${char}`);
         counts[index] += 1;
         if (counts[index] > 4) throw new Error(`${TILE_NAMES[index]}超过 4 张`);
+        if (digit === '0') redFives[index] += 1;
       }
       digits = '';
       continue;
@@ -47,7 +49,11 @@ export function parseTiles(input = '') {
     throw new Error(`无法识别字符：${char}`);
   }
   if (digits) throw new Error(`数字 ${digits} 后缺少花色 m/p/s/z`);
-  return counts;
+  return { counts, redFives };
+}
+
+export function parseTiles(input = '') {
+  return parseTileState(input).counts;
 }
 
 export function countsToTiles(counts) {
@@ -55,12 +61,22 @@ export function countsToTiles(counts) {
 }
 
 export function countsToNotation(counts) {
+  return tileStateToNotation(counts);
+}
+
+export function tileStateToNotation(counts, redFives = Array(34).fill(0)) {
   let result = '';
   for (let suit = 0; suit < 4; suit += 1) {
     const start = suit * 9;
     const size = suit === 3 ? 7 : 9;
     let digits = '';
-    for (let i = 0; i < size; i += 1) digits += String(i + 1).repeat(counts[start + i] || 0);
+    for (let i = 0; i < size; i += 1) {
+      const index = start + i;
+      const count = counts[index] || 0;
+      const redCount = i === 4 && suit < 3 ? Math.min(count, redFives[index] || 0) : 0;
+      digits += '0'.repeat(redCount);
+      digits += String(i + 1).repeat(count - redCount);
+    }
     if (digits) result += `${digits}${'mpsz'[suit]}`;
   }
   return result;
@@ -267,13 +283,69 @@ function dangerForOpponent(tile, discards, visible) {
   return { score: Math.max(8, 48 + terminalFactor - (suji ? 22 : 0)), label: suji ? '筋' : '无明显安全信息' };
 }
 
-export function analyzeHand({ concealed, openMelds = [], discards = [], riichi = [], doraIndicators = [], strategy = 'balanced', context = {} }) {
+function validateHandState(concealed, redFives, fixedMelds) {
+  if (!Array.isArray(concealed) || concealed.length !== 34) {
+    throw new Error('手牌必须是 34 种牌的计数数组');
+  }
+  for (let index = 0; index < concealed.length; index += 1) {
+    const count = concealed[index];
+    if (!Number.isInteger(count) || count < 0 || count > 4) {
+      throw new Error(`${TILE_NAMES[index]}的手牌数量无效`);
+    }
+    const redCount = redFives[index] || 0;
+    const isFive = index < 27 && index % 9 === 4;
+    if (!Number.isInteger(redCount) || redCount < 0 || redCount > count || (!isFive && redCount)) {
+      throw new Error(`${TILE_NAMES[index]}的赤五数量无效`);
+    }
+  }
+  const tileTotal = concealed.reduce((sum, count) => sum + count, 0);
+  const expected = [13 - fixedMelds * 3, 14 - fixedMelds * 3];
+  if (!expected.includes(tileTotal)) {
+    throw new Error(`有 ${fixedMelds} 组副露时，暗手应为 ${expected[0]} 或 ${expected[1]} 张；当前为 ${tileTotal} 张`);
+  }
+  return tileTotal;
+}
+
+function buildVisibleCounts(concealed, openMelds, rivers, doraIndicators) {
+  const visible = [...concealed];
+  for (const meld of openMelds) {
+    for (const tile of groupTiles(meld)) visible[tile] += 1;
+  }
+  for (const river of rivers) {
+    for (const tile of river) {
+      if (!Number.isInteger(tile) || tile < 0 || tile >= 34) throw new Error('牌河中存在无效牌');
+      visible[tile] += 1;
+    }
+  }
+  for (const indicator of doraIndicators) {
+    if (!Number.isInteger(indicator) || indicator < 0 || indicator >= 34) throw new Error('宝牌指示牌中存在无效牌');
+    visible[indicator] += 1;
+  }
+  const impossible = visible.findIndex((count) => count > 4);
+  if (impossible >= 0) throw new Error(`${TILE_NAMES[impossible]}的可见数量超过 4 张`);
+  return visible;
+}
+
+export function analyzeHand({
+  concealed,
+  openMelds = [],
+  selfDiscards = [],
+  discards = [],
+  riichi = [],
+  doraIndicators = [],
+  redFives = Array(34).fill(0),
+  strategy = 'balanced',
+  context = {},
+}) {
   const fixedMelds = openMelds.length;
-  const openCounts = Array(34).fill(0);
-  for (const meld of openMelds) for (const tile of groupTiles(meld)) openCounts[tile] += 1;
-  const visible = concealed.map((n, i) => n + openCounts[i] + discards.reduce((sum, river) => sum + river.filter((t) => t === i).length, 0));
+  const tileTotal = validateHandState(concealed, redFives, fixedMelds);
+  const visible = buildVisibleCounts(
+    concealed,
+    openMelds,
+    [selfDiscards, ...discards],
+    doraIndicators,
+  );
   const shanten = calculateShanten(concealed, fixedMelds);
-  const tileTotal = concealed.reduce((a, b) => a + b, 0);
   const drawState = tileTotal === 14 - fixedMelds * 3;
   const effective = effectiveTiles(concealed, fixedMelds, visible);
   const dora = doraIndicators.map(doraTile).filter((i) => i >= 0);
@@ -282,6 +354,8 @@ export function analyzeHand({ concealed, openMelds = [], discards = [], riichi =
   if (drawState) {
     for (let discard = 0; discard < 34; discard += 1) {
       if (!concealed[discard]) continue;
+      const normalCopies = concealed[discard] - (redFives[discard] || 0);
+      const redFiveLoss = normalCopies === 0 && (redFives[discard] || 0) > 0 ? 1 : 0;
       concealed[discard] -= 1;
       const nextShanten = calculateShanten(concealed, fixedMelds);
       const waits = effectiveTiles(concealed, fixedMelds, visible);
@@ -291,10 +365,9 @@ export function analyzeHand({ concealed, openMelds = [], discards = [], riichi =
       const danger = threats.length ? Math.max(...threats.map((item) => item.score)) : 0;
       const safety = threats.length ? threats.map((item) => item.label).join(' / ') : '无人立直';
       const doraLoss = dora.filter((tile) => tile === discard).length;
-      const redFiveLoss = 0;
       const weights = strategy === 'defense' ? { danger: 2.4, ukeire: 1.2 } : strategy === 'attack' ? { danger: 0.45, ukeire: 2.2 } : { danger: 1.1, ukeire: 1.7 };
-      const score = -nextShanten * 1000 + ukeire * weights.ukeire - danger * weights.danger - doraLoss * 26 - redFiveLoss;
-      suggestions.push({ discard, nextShanten, waits, ukeire, danger, safety, doraLoss, score });
+      const score = -nextShanten * 1000 + ukeire * weights.ukeire - danger * weights.danger - doraLoss * 26 - redFiveLoss * 18;
+      suggestions.push({ discard, nextShanten, waits, ukeire, danger, safety, doraLoss, redFiveLoss, score });
     }
     suggestions.sort((a, b) => b.score - a.score || a.danger - b.danger || b.ukeire - a.ukeire);
   }
