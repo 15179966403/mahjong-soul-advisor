@@ -68,8 +68,12 @@ index.html          页面结构
 src/app.js          交互与结果展示
 src/mahjong.js      纯函数牌理引擎
 src/styles.css      响应式视觉样式
+backend/            本地截图识别核心（第一阶段）
 tests/              Node.js 单元测试
 ```
+
+截图识别后端当前提供离线命令行入口，环境和用法见
+[`backend/README.md`](./backend/README.md)。网页上传和识别 API 将在后续阶段接入。
 
 ## 后续路线
 
@@ -77,7 +81,7 @@ tests/              Node.js 单元测试
 - 更完整的役种、符数与点数计算
 - 巡目、点差、庄家、剩余局数纳入押引判断
 - 壁、无筋数量、两筋与牌河读牌的风险模型
-- 截图识别（OCR/CV），减少手动录入
+- 截图识别（传统 CV + CNN），减少手动录入；实施方案与进度见 [`docs/TECHNICAL_ROADMAP.md`](./docs/TECHNICAL_ROADMAP.md)
 
 ## License
 
