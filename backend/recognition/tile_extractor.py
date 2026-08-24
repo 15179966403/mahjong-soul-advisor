@@ -35,7 +35,9 @@ class RiverRegion:
 
 
 RIVER_REGIONS: Sequence[RiverRegion] = (
-    RiverRegion("self", (306, 494, 185, 180), None),
+    # Leave enough room for the first tile of a six-tile row. Perspective can
+    # place its white face slightly left of the older x=306 boundary.
+    RiverRegion("self", (294, 494, 197, 180), None),
     RiverRegion("right", (455, 275, 200, 235), "clockwise"),
     RiverRegion("opposite", (307, 119, 185, 180), "180"),
     RiverRegion("left", (145, 275, 200, 235), "counterclockwise"),

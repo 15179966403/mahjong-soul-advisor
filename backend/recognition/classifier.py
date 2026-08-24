@@ -246,9 +246,12 @@ class TileClassifier:
 
         River tiles have small perspective and segmentation differences between
         seats. Stretching a slightly wider crop to 64x64 can change the shape of
-        dense characters such as 4m. A correction is accepted only when all
-        three centered crops agree, beat the original result by a meaningful
-        margin and still remain visible as low confidence to the review UI.
+        dense manzu characters such as 4m. The retry is deliberately limited to
+        manzu: trimming the sides of pinzu destroys the pip layout and can turn
+        a correct 5p result into the decorative 1p class. A correction is
+        accepted only when all three centered crops agree, beat the original
+        result by a meaningful margin and still remain visible as low confidence
+        to the review UI.
         """
 
         uncertain_positions = [
@@ -256,8 +259,7 @@ class TileClassifier:
             for position, (index, score) in enumerate(
                 zip(original_indices, original_confidences)
             )
-            if score < CENTER_CROP_TRIGGER_CONFIDENCE
-            and self.classes[index] is not None
+            if self._should_use_center_crop_consensus(self.classes[index], score)
         ]
         if not uncertain_positions:
             return {}
@@ -300,6 +302,17 @@ class TileClassifier:
             ):
                 corrections[position] = (consensus_index, consensus_confidence)
         return corrections
+
+    @staticmethod
+    def _should_use_center_crop_consensus(
+        code: Optional[str],
+        confidence: float,
+    ) -> bool:
+        return (
+            confidence < CENTER_CROP_TRIGGER_CONFIDENCE
+            and code is not None
+            and code.endswith("m")
+        )
 
     def _vertical_crop_consensus(
         self,

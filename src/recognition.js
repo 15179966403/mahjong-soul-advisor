@@ -107,6 +107,13 @@ export function normalizeRecognitionResult(payload) {
   const selfWind = ['1z', '2z', '3z', '4z'].includes(payload.context?.selfWind)
     ? payload.context.selfWind
     : null;
+  const roundWind = ['1z', '2z'].includes(payload.context?.roundWind)
+    ? payload.context.roundWind
+    : null;
+  const rawRoundWindConfidence = Number(payload.context?.roundWindConfidence);
+  const roundWindConfidence = Number.isFinite(rawRoundWindConfidence)
+    ? Math.max(0, Math.min(1, rawRoundWindConfidence))
+    : 0;
 
   return {
     schemaVersion: 1,
@@ -114,7 +121,13 @@ export function normalizeRecognitionResult(payload) {
     table: payload.table || null,
     hand: payload.hand.map((tile) => normalizeTile(tile, 'hand')),
     rivers,
-    context: { riichi, doraIndicators, selfWind },
+    context: {
+      riichi,
+      doraIndicators,
+      selfWind,
+      roundWind,
+      roundWindConfidence,
+    },
     warnings: Array.isArray(payload.warnings) ? payload.warnings.map(String) : [],
   };
 }

@@ -7,8 +7,12 @@ import cv2
 import numpy as np
 
 from backend.config import ApiSettings, is_loopback_host
-from backend.recognition.classifier import ModelLoadError, normalize_tile_code
-from backend.recognition.context_extractor import SeatWindDetector
+from backend.recognition.classifier import (
+    ModelLoadError,
+    TileClassifier,
+    normalize_tile_code,
+)
+from backend.recognition.context_extractor import RoundWindDetector, SeatWindDetector
 from backend.recognition.schemas import RecognitionContext
 from backend.recognition.tile_extractor import DoraIndicatorExtractor, RiverTileExtractor
 
@@ -58,12 +62,30 @@ class RecognitionCoreTest(unittest.TestCase):
             {0},
         )
 
+    def test_self_river_region_keeps_leftmost_tile(self) -> None:
+        warped = np.zeros((800, 800, 3), dtype=np.uint8)
+        cv2.rectangle(warped, (295, 503), (317, 540), (235, 235, 235), -1)
+        tiles = RiverTileExtractor().extract(warped)["self"]
+        self.assertEqual(len(tiles), 1)
+        self.assertEqual(tiles[0].bbox, (295, 503, 23, 38))
+
+    def test_center_crop_consensus_is_limited_to_manzu(self) -> None:
+        self.assertTrue(TileClassifier._should_use_center_crop_consensus("4m", 0.2))
+        self.assertFalse(TileClassifier._should_use_center_crop_consensus("5p", 0.2))
+        self.assertFalse(TileClassifier._should_use_center_crop_consensus("1p", 0.2))
+
     def test_recognition_context_serializes_riichi_for_all_seats(self) -> None:
-        context = RecognitionContext(riichi={"right": True})
+        context = RecognitionContext(
+            riichi={"right": True},
+            round_wind="1z",
+            round_wind_confidence=0.842163,
+        )
         self.assertEqual(
             context.to_dict()["riichi"],
             {"self": False, "right": True, "opposite": False, "left": False},
         )
+        self.assertEqual(context.to_dict()["roundWind"], "1z")
+        self.assertEqual(context.to_dict()["roundWindConfidence"], 0.842163)
 
     def test_dora_indicator_extractor_finds_top_left_revealed_tile(self) -> None:
         image = np.zeros((1220, 2712, 3), dtype=np.uint8)
@@ -85,6 +107,22 @@ class RecognitionCoreTest(unittest.TestCase):
                 warped = np.zeros((800, 800, 3), dtype=np.uint8)
                 cv2.rectangle(warped, (x, y), (x + 24, y + 29), (0, 0, 210), -1)
                 self.assertEqual(SeatWindDetector().detect(warped), expected)
+
+    def test_round_wind_uses_cyan_glyph_shape(self) -> None:
+        detector = RoundWindDetector()
+        self.assertEqual(set(detector.templates), {"1z", "2z"})
+        for expected, template in detector.templates.items():
+            with self.subTest(expected=expected):
+                warped = np.zeros((800, 800, 3), dtype=np.uint8)
+                glyph = cv2.resize(template, (12, 24), interpolation=cv2.INTER_NEAREST)
+                glyph_region = warped[380:404, 370:382]
+                glyph_region[glyph > 0] = (255, 220, 0)
+                cv2.rectangle(warped, (388, 380), (397, 403), (255, 220, 0), -1)
+                cv2.rectangle(warped, (403, 380), (412, 403), (255, 220, 0), -1)
+                detection = detector.detect(warped)
+                self.assertIsNotNone(detection)
+                self.assertEqual(detection.code, expected)
+                self.assertGreaterEqual(detection.confidence, 0.5)
 
 
 if __name__ == "__main__":

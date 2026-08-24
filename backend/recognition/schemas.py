@@ -69,6 +69,8 @@ class RecognitionContext:
     riichi: Dict[str, bool] = field(default_factory=dict)
     dora_indicators: Sequence[TilePrediction] = ()
     self_wind: Optional[str] = None
+    round_wind: Optional[str] = None
+    round_wind_confidence: Optional[float] = None
 
     def to_dict(self) -> dict:
         payload = {
@@ -80,6 +82,12 @@ class RecognitionContext:
         }
         if self.self_wind is not None:
             payload["selfWind"] = self.self_wind
+        if self.round_wind is not None:
+            payload["roundWind"] = self.round_wind
+            payload["roundWindConfidence"] = round(
+                float(self.round_wind_confidence or 0.0),
+                6,
+            )
         return payload
 
 

@@ -27,6 +27,8 @@ test('识别响应保留四家牌河和赤五身份', () => {
       riichi: { self: false, right: true, opposite: false, left: false },
       doraIndicators: [tile('7z')],
       selfWind: '2z',
+      roundWind: '1z',
+      roundWindConfidence: 0.84,
     },
     warnings: [],
   });
@@ -43,6 +45,8 @@ test('识别响应保留四家牌河和赤五身份', () => {
   assert.equal(draft.rivers.right[0].sideways, true);
   assert.deepEqual(draft.context.doraIndicators.map((item) => item.code), ['7z']);
   assert.equal(draft.context.selfWind, '2z');
+  assert.equal(draft.context.roundWind, '1z');
+  assert.equal(draft.context.roundWindConfidence, 0.84);
   assert.deepEqual(
     draft.context.riichi,
     { self: false, right: true, opposite: false, left: false },

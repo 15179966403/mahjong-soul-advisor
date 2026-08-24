@@ -13,7 +13,11 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .board_detector import BoardDetector, TableNotFoundError
 from .classifier import ModelLoadError, TileClassifier
-from .context_extractor import SeatWindDetector
+from .context_extractor import (
+    RoundWindDetection,
+    RoundWindDetector,
+    SeatWindDetector,
+)
 from .schemas import (
     BoundingBox,
     ImageInfo,
@@ -50,6 +54,7 @@ class RecognitionService:
             raise ValueError("minimum_confidence must be between 0 and 1")
         self.minimum_confidence = minimum_confidence
         self.board_detector = BoardDetector()
+        self.round_wind_detector = RoundWindDetector()
         self.seat_wind_detector = SeatWindDetector()
         self.dora_extractor = DoraIndicatorExtractor()
         self.hand_extractor = HandTileExtractor()
@@ -113,6 +118,7 @@ class RecognitionService:
         warped, _, inverse = self.board_detector.warp(image, table.quad)
         if debug_dir is not None:
             cv2.imwrite(str(debug_dir / "04_board_warped.png"), warped)
+        round_wind = self.round_wind_detector.detect(warped, debug_dir=debug_dir)
         self_wind = self.seat_wind_detector.detect(warped, debug_dir=debug_dir)
 
         dora_crops = self.dora_extractor.extract(image, debug_dir=debug_dir)
@@ -162,6 +168,7 @@ class RecognitionService:
             hand,
             rivers,
             dora_indicators,
+            round_wind,
             rejected_count,
         )
         return RecognitionResult(
@@ -177,6 +184,8 @@ class RecognitionService:
                 riichi=riichi,
                 dora_indicators=dora_indicators,
                 self_wind=self_wind,
+                round_wind=round_wind.code if round_wind else None,
+                round_wind_confidence=round_wind.confidence if round_wind else None,
             ),
             warnings=warnings,
         )
@@ -213,6 +222,7 @@ class RecognitionService:
         hand: List[TilePrediction],
         rivers: Dict[str, List[TilePrediction]],
         dora_indicators: List[TilePrediction],
+        round_wind: Optional[RoundWindDetection],
         rejected_count: int,
     ) -> List[str]:
         warnings: List[str] = []
@@ -274,6 +284,12 @@ class RecognitionService:
             warnings.append("未识别到任何牌河牌；空牌河时可忽略此提示")
         if not dora_indicators:
             warnings.append("未识别到宝牌指示牌，建议在分析前手动补充")
+        if round_wind is None:
+            warnings.append("未识别到场风，建议在分析前手动选择")
+        elif round_wind.confidence < self.minimum_confidence:
+            warnings.append(
+                f"场风识别置信度为 {round_wind.confidence:.0%}，建议人工确认"
+            )
         return warnings
 
     @staticmethod

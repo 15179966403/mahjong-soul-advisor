@@ -173,10 +173,13 @@ function renderRecognitionReview() {
   const selfWindLabel = draft.context.selfWind
     ? tileNameForCode(draft.context.selfWind)
     : '待补充';
+  const roundWindLabel = draft.context.roundWind
+    ? tileNameForCode(draft.context.roundWind)
+    : '待补充';
   $('#recognition-review').classList.remove('hidden');
   $('#recognition-review').setAttribute('aria-hidden', 'false');
   $('#recognition-preview').innerHTML = `<img src="${recognitionState.previewUrl}" alt="待校对的雀魂截图" />${allTiles.map((tile) => overlayMarkup(tile, draft)).join('')}`;
-  $('#recognition-metrics').innerHTML = `<span><b>${diagnostics.handCount}</b> 手牌</span><span><b>${diagnostics.totalCount}</b> 可见牌</span><span><b>${doraCount}</b> 宝牌指示</span><span><b>${selfWindLabel}</b> 自风</span><span><b>${riichiCount}</b> 对手立直</span><span class="${diagnostics.lowConfidenceCount ? 'attention' : ''}"><b>${diagnostics.lowConfidenceCount}</b> 低置信度</span>`;
+  $('#recognition-metrics').innerHTML = `<span><b>${diagnostics.handCount}</b> 手牌</span><span><b>${diagnostics.totalCount}</b> 可见牌</span><span><b>${doraCount}</b> 宝牌指示</span><span><b>${roundWindLabel}/${selfWindLabel}</b> 场风 / 自风</span><span><b>${riichiCount}</b> 对手立直</span><span class="${diagnostics.lowConfidenceCount ? 'attention' : ''}"><b>${diagnostics.lowConfidenceCount}</b> 低置信度</span>`;
 
   const localWarnings = [];
   if (![13, 14].includes(diagnostics.handCount)) {
@@ -269,6 +272,7 @@ function applyRecognitionDraft() {
   ).length;
   const doraCount = draft.context.doraIndicators.length;
   const selfWind = draft.context.selfWind;
+  const roundWind = draft.context.roundWind;
   setRecognitionNotice();
   try {
     const diagnostics = draftDiagnostics(draft);
@@ -296,6 +300,7 @@ function applyRecognitionDraft() {
       .map((tile) => tile.code)
       .join(' ');
     if (selfWind) $('#seat-wind').value = selfWind;
+    if (roundWind) $('#round-wind').value = roundWind;
     for (const position of OPPONENT_POSITIONS) {
       $(`[data-riichi="${position}"]`).checked = draft.context.riichi[position];
     }
@@ -303,7 +308,7 @@ function applyRecognitionDraft() {
     $('#results').classList.add('hidden');
     clearRecognitionResult({ keepNotice: true });
     setRecognitionNotice(
-      `识别结果已导入${doraCount ? `，包含 ${doraCount} 张宝牌指示牌` : ''}${selfWind ? `，自风为${tileNameForCode(selfWind)}` : ''}${riichiCount ? `，并填写 ${riichiCount} 家对手立直状态` : ''}。请核对后开始分析。`,
+      `识别结果已导入${doraCount ? `，包含 ${doraCount} 张宝牌指示牌` : ''}${roundWind ? `，场风为${tileNameForCode(roundWind)}` : ''}${selfWind ? `，自风为${tileNameForCode(selfWind)}` : ''}${riichiCount ? `，并填写 ${riichiCount} 家对手立直状态` : ''}。请核对后开始分析。`,
       'success',
     );
     $('.hand-stage').scrollIntoView({ behavior: 'smooth', block: 'center' });
