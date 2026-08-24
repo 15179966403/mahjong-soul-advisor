@@ -1,6 +1,6 @@
 # 本地截图识别核心
 
-该目录是 Mahjong Soul Advisor 的离线识别后端。第一阶段只提供“本地截图 → JSON”命令行流程，不包含 HTTP API、网页上传或 Android 自动化。
+该目录是 Mahjong Soul Advisor 的本地识别后端。它提供“本地截图 → JSON”命令行流程和仅监听本机的 HTTP API，不包含网页上传界面或 Android 自动化。
 
 ## 环境
 
@@ -24,7 +24,7 @@ python -m pip install --force-reinstall \
 python -m pip install -r backend/requirements.txt
 ```
 
-## 运行
+## 命令行识别
 
 ```bash
 python -m backend.recognize /absolute/path/to/screenshot.png
@@ -45,6 +45,53 @@ python -m backend.recognize /absolute/path/to/screenshot.png \
 ```
 
 `backend/output/`、`backend/debug/`、`backend/uploads/` 和 `datasets/private/` 均由 `.gitignore` 排除。请勿将私人对局截图提交到仓库。
+
+## 本地识别 API
+
+启动服务：
+
+```bash
+python -m backend.serve
+```
+
+服务默认只监听 `127.0.0.1:8765`。健康检查：
+
+```bash
+curl http://127.0.0.1:8765/api/health
+```
+
+识别截图时，将原始图片二进制放入请求体，并提供正确的图片类型：
+
+```bash
+curl --request POST \
+  --header "Content-Type: image/jpeg" \
+  --data-binary @/absolute/path/to/screenshot.jpeg \
+  http://127.0.0.1:8765/api/recognize
+```
+
+支持 PNG、JPEG 和 WebP。默认限制为 12 MB、单边不超过 8192 像素、总像素不超过 2400 万，识别超时为45秒。API 不保存上传内容或调试图片，请求完成后只返回结构化 JSON。
+
+浏览器访问默认允许来自 `localhost` 或 `127.0.0.1` 的 4173、5173 端口。配置项示例见根目录 `.env.example`；该文件只用于说明，需要在启动进程前通过 shell 导出配置。例如：
+
+```bash
+export MAHJONG_API_PORT=8765
+export MAHJONG_RECOGNITION_TIMEOUT_SECONDS=60
+python -m backend.serve
+```
+
+错误响应统一为：
+
+```json
+{
+  "error": {
+    "code": "TABLE_NOT_FOUND",
+    "message": "未能在截图中定位雀魂牌桌",
+    "requestId": "..."
+  }
+}
+```
+
+`X-Request-ID` 同时写入响应头，便于将前端错误与本地日志对应。服务禁止绑定非回环地址，避免截图识别接口意外暴露到局域网。
 
 ## 筒子结构校验
 

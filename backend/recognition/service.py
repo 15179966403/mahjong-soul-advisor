@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections import Counter
+from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -56,6 +57,30 @@ class RecognitionService:
     ) -> RecognitionResult:
         image = self._load_image(image_path)
         return self.recognize_image(image, debug_dir=debug_dir)
+
+    def recognize_bytes(
+        self,
+        image_data: bytes,
+        allowed_formats: Sequence[str] = ("JPEG", "PNG", "WEBP"),
+        minimum_width: int = 1,
+        minimum_height: int = 1,
+        maximum_dimension: int = 8192,
+        maximum_pixels: int = 24_000_000,
+    ) -> RecognitionResult:
+        """Decode and recognize an in-memory upload without writing it to disk."""
+
+        if not image_data:
+            raise RecognitionError("INVALID_IMAGE", "截图为空")
+        image = self._decode_image(
+            BytesIO(image_data),
+            source_name="上传的截图",
+            allowed_formats=allowed_formats,
+            minimum_width=minimum_width,
+            minimum_height=minimum_height,
+            maximum_dimension=maximum_dimension,
+            maximum_pixels=maximum_pixels,
+        )
+        return self.recognize_image(image)
 
     def recognize_image(
         self,
@@ -219,10 +244,59 @@ class RecognitionService:
         path = Path(image_path)
         if not path.is_file():
             raise RecognitionError("IMAGE_NOT_FOUND", f"截图文件不存在：{path}")
+        return RecognitionService._decode_image(
+            path,
+            source_name=str(path),
+            allowed_formats=("JPEG", "PNG", "WEBP"),
+            minimum_width=1,
+            minimum_height=1,
+            maximum_dimension=100_000,
+            maximum_pixels=200_000_000,
+        )
+
+    @staticmethod
+    def _decode_image(
+        source,
+        source_name: str,
+        allowed_formats: Sequence[str],
+        minimum_width: int,
+        minimum_height: int,
+        maximum_dimension: int,
+        maximum_pixels: int,
+    ) -> np.ndarray:
         try:
-            with Image.open(path) as source:
-                rgb = ImageOps.exif_transpose(source).convert("RGB")
+            with Image.open(source) as opened:
+                image_format = str(opened.format or "").upper()
+                normalized_formats = {str(value).upper() for value in allowed_formats}
+                if image_format not in normalized_formats:
+                    raise RecognitionError(
+                        "UNSUPPORTED_IMAGE_FORMAT",
+                        "截图格式必须是 PNG、JPEG 或 WebP",
+                    )
+
+                width, height = opened.size
+                if width < minimum_width or height < minimum_height:
+                    raise RecognitionError(
+                        "IMAGE_TOO_SMALL",
+                        f"截图尺寸至少需要 {minimum_width}×{minimum_height} 像素",
+                    )
+                if (
+                    width > maximum_dimension
+                    or height > maximum_dimension
+                    or width * height > maximum_pixels
+                ):
+                    raise RecognitionError(
+                        "IMAGE_DIMENSIONS_EXCEEDED",
+                        "截图尺寸或像素总量超过允许上限",
+                    )
+
+                rgb = ImageOps.exif_transpose(opened).convert("RGB")
                 image = cv2.cvtColor(np.asarray(rgb), cv2.COLOR_RGB2BGR)
-        except (UnidentifiedImageError, OSError) as exc:
-            raise RecognitionError("INVALID_IMAGE", f"无法读取截图：{path}") from exc
+        except RecognitionError:
+            raise
+        except (Image.DecompressionBombError, UnidentifiedImageError, OSError) as exc:
+            raise RecognitionError(
+                "INVALID_IMAGE",
+                f"无法读取截图：{source_name}",
+            ) from exc
         return image

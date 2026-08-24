@@ -68,12 +68,12 @@ index.html          页面结构
 src/app.js          交互与结果展示
 src/mahjong.js      纯函数牌理引擎
 src/styles.css      响应式视觉样式
-backend/            本地截图识别核心（第一阶段）
+backend/            本地截图识别核心与 HTTP API
 tests/              Node.js 单元测试
 ```
 
-截图识别后端当前提供离线命令行入口，环境和用法见
-[`backend/README.md`](./backend/README.md)。网页上传和识别 API 将在后续阶段接入。
+截图识别后端提供离线命令行和仅监听本机的 HTTP API，环境和用法见
+[`backend/README.md`](./backend/README.md)。网页上传、校对和分析联调将在后续阶段接入。
 
 ## 后续路线
 
