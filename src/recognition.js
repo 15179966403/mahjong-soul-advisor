@@ -70,6 +70,7 @@ function normalizeTile(tile, zone) {
     bbox: normalizeBbox(tile.bbox),
     status: tile.status || null,
     recognition: tile.recognition || null,
+    sideways: tile.sideways === true,
     edited: false,
     added: false,
   };
@@ -95,6 +96,17 @@ export function normalizeRecognitionResult(payload) {
       : [];
     rivers[position] = tiles.map((tile) => normalizeTile(tile, `rivers.${position}`));
   }
+  const riichi = Object.fromEntries(RIVER_POSITIONS.map((position) => (
+    [position, payload.context?.riichi?.[position] === true]
+  )));
+  const doraIndicators = Array.isArray(payload.context?.doraIndicators)
+    ? payload.context.doraIndicators.map(
+      (tile) => normalizeTile(tile, 'context.doraIndicators'),
+    )
+    : [];
+  const selfWind = ['1z', '2z', '3z', '4z'].includes(payload.context?.selfWind)
+    ? payload.context.selfWind
+    : null;
 
   return {
     schemaVersion: 1,
@@ -102,12 +114,14 @@ export function normalizeRecognitionResult(payload) {
     table: payload.table || null,
     hand: payload.hand.map((tile) => normalizeTile(tile, 'hand')),
     rivers,
+    context: { riichi, doraIndicators, selfWind },
     warnings: Array.isArray(payload.warnings) ? payload.warnings.map(String) : [],
   };
 }
 
 export function getDraftZone(draft, zone) {
   if (zone === 'hand') return draft.hand;
+  if (zone === 'context.doraIndicators') return draft.context.doraIndicators;
   const match = /^rivers\.(self|right|opposite|left)$/.exec(zone);
   if (!match) throw new Error(`未知识别区域：${zone}`);
   return draft.rivers[match[1]];
@@ -140,6 +154,7 @@ export function addDraftTile(draft, zone, code) {
     bbox: null,
     status: null,
     recognition: null,
+    sideways: false,
     edited: true,
     added: true,
   });
@@ -148,6 +163,7 @@ export function addDraftTile(draft, zone, code) {
 export function allDraftTiles(draft) {
   return [
     ...draft.hand,
+    ...draft.context.doraIndicators,
     ...RIVER_POSITIONS.flatMap((position) => draft.rivers[position]),
   ];
 }

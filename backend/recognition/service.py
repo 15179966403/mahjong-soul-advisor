@@ -13,14 +13,21 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .board_detector import BoardDetector, TableNotFoundError
 from .classifier import ModelLoadError, TileClassifier
+from .context_extractor import SeatWindDetector
 from .schemas import (
     BoundingBox,
     ImageInfo,
+    RecognitionContext,
     RecognitionResult,
     TableInfo,
     TilePrediction,
 )
-from .tile_extractor import ExtractedTile, HandTileExtractor, RiverTileExtractor
+from .tile_extractor import (
+    DoraIndicatorExtractor,
+    ExtractedTile,
+    HandTileExtractor,
+    RiverTileExtractor,
+)
 
 
 class RecognitionError(RuntimeError):
@@ -43,6 +50,8 @@ class RecognitionService:
             raise ValueError("minimum_confidence must be between 0 and 1")
         self.minimum_confidence = minimum_confidence
         self.board_detector = BoardDetector()
+        self.seat_wind_detector = SeatWindDetector()
+        self.dora_extractor = DoraIndicatorExtractor()
         self.hand_extractor = HandTileExtractor()
         self.river_extractor = RiverTileExtractor()
         try:
@@ -104,10 +113,18 @@ class RecognitionService:
         warped, _, inverse = self.board_detector.warp(image, table.quad)
         if debug_dir is not None:
             cv2.imwrite(str(debug_dir / "04_board_warped.png"), warped)
+        self_wind = self.seat_wind_detector.detect(warped, debug_dir=debug_dir)
 
+        dora_crops = self.dora_extractor.extract(image, debug_dir=debug_dir)
         hand_crops = self.hand_extractor.extract(image, debug_dir=debug_dir)
         river_crops = self.river_extractor.extract(warped, debug_dir=debug_dir)
-        hand, rejected_count = self._classify_tiles(hand_crops)
+        riichi = {
+            position: any(crop.sideways for crop in river_crops.get(position, []))
+            for position in ("self", "right", "opposite", "left")
+        }
+        dora_indicators, rejected_count = self._classify_tiles(dora_crops)
+        hand, hand_rejected_count = self._classify_tiles(hand_crops)
+        rejected_count += hand_rejected_count
 
         image_height, image_width = image.shape[:2]
         rivers: Dict[str, List[TilePrediction]] = {}
@@ -136,11 +153,17 @@ class RecognitionService:
                         circle_count=prediction.circle_count,
                         structure_confidence=prediction.structure_confidence,
                         structure_votes=prediction.structure_votes,
+                        sideways=crop.sideways,
                     )
                 )
             rivers[position] = river_predictions
 
-        warnings = self._build_warnings(hand, rivers, rejected_count)
+        warnings = self._build_warnings(
+            hand,
+            rivers,
+            dora_indicators,
+            rejected_count,
+        )
         return RecognitionResult(
             image=ImageInfo(width=image_width, height=image_height),
             table=TableInfo(
@@ -150,6 +173,11 @@ class RecognitionService:
             ),
             hand=hand,
             rivers=rivers,
+            context=RecognitionContext(
+                riichi=riichi,
+                dora_indicators=dora_indicators,
+                self_wind=self_wind,
+            ),
             warnings=warnings,
         )
 
@@ -184,6 +212,7 @@ class RecognitionService:
         self,
         hand: List[TilePrediction],
         rivers: Dict[str, List[TilePrediction]],
+        dora_indicators: List[TilePrediction],
         rejected_count: int,
     ) -> List[str]:
         warnings: List[str] = []
@@ -197,6 +226,7 @@ class RecognitionService:
         all_tiles = list(hand)
         for tiles in rivers.values():
             all_tiles.extend(tiles)
+        all_tiles.extend(dora_indicators)
         low_confidence = [
             tile for tile in all_tiles if tile.confidence < self.minimum_confidence
         ]
@@ -242,6 +272,8 @@ class RecognitionService:
 
         if not any(rivers.values()):
             warnings.append("未识别到任何牌河牌；空牌河时可忽略此提示")
+        if not dora_indicators:
+            warnings.append("未识别到宝牌指示牌，建议在分析前手动补充")
         return warnings
 
     @staticmethod

@@ -35,6 +35,7 @@ class TilePrediction:
     circle_count: Optional[int] = None
     structure_confidence: Optional[float] = None
     structure_votes: Sequence[int] = ()
+    sideways: bool = False
 
     def to_dict(self) -> dict:
         payload = {
@@ -44,6 +45,8 @@ class TilePrediction:
         }
         if self.status is not None:
             payload["status"] = self.status
+        if self.sideways:
+            payload["sideways"] = True
         if self.model_code is not None:
             recognition = {
                 "source": self.decision_source,
@@ -58,6 +61,25 @@ class TilePrediction:
                 )
                 recognition["structureVotes"] = [int(vote) for vote in self.structure_votes]
             payload["recognition"] = recognition
+        return payload
+
+
+@dataclass(frozen=True)
+class RecognitionContext:
+    riichi: Dict[str, bool] = field(default_factory=dict)
+    dora_indicators: Sequence[TilePrediction] = ()
+    self_wind: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        payload = {
+            "riichi": {
+                position: bool(self.riichi.get(position, False))
+                for position in ("self", "right", "opposite", "left")
+            },
+            "doraIndicators": [tile.to_dict() for tile in self.dora_indicators],
+        }
+        if self.self_wind is not None:
+            payload["selfWind"] = self.self_wind
         return payload
 
 
@@ -93,6 +115,7 @@ class RecognitionResult:
     table: TableInfo
     hand: List[TilePrediction] = field(default_factory=list)
     rivers: Dict[str, List[TilePrediction]] = field(default_factory=dict)
+    context: RecognitionContext = field(default_factory=RecognitionContext)
     warnings: List[str] = field(default_factory=list)
     schema_version: int = 1
 
@@ -106,5 +129,6 @@ class RecognitionResult:
                 position: [tile.to_dict() for tile in tiles]
                 for position, tiles in self.rivers.items()
             },
+            "context": self.context.to_dict(),
             "warnings": list(self.warnings),
         }

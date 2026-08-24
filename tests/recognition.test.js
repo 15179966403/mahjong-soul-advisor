@@ -8,8 +8,8 @@ import {
 } from '../src/recognition.js';
 import { tileIndex } from '../src/mahjong.js';
 
-function tile(code, confidence = 0.9) {
-  return { code, confidence, bbox: [10, 20, 30, 40] };
+function tile(code, confidence = 0.9, sideways = false) {
+  return { code, confidence, bbox: [10, 20, 30, 40], sideways };
 }
 
 test('识别响应保留四家牌河和赤五身份', () => {
@@ -19,9 +19,14 @@ test('识别响应保留四家牌河和赤五身份', () => {
     hand: [tile('0m')],
     rivers: {
       self: [tile('1m')],
-      right: [tile('2m')],
+      right: [tile('2m', 0.9, true)],
       opposite: [tile('3m')],
       left: [tile('4m')],
+    },
+    context: {
+      riichi: { self: false, right: true, opposite: false, left: false },
+      doraIndicators: [tile('7z')],
+      selfWind: '2z',
     },
     warnings: [],
   });
@@ -35,6 +40,13 @@ test('识别响应保留四家牌河和赤五身份', () => {
   const handState = codesToTileState(draft.hand.map((item) => item.code));
   assert.equal(handState.counts[tileIndex('5m')], 1);
   assert.equal(handState.redFives[tileIndex('5m')], 1);
+  assert.equal(draft.rivers.right[0].sideways, true);
+  assert.deepEqual(draft.context.doraIndicators.map((item) => item.code), ['7z']);
+  assert.equal(draft.context.selfWind, '2z');
+  assert.deepEqual(
+    draft.context.riichi,
+    { self: false, right: true, opposite: false, left: false },
+  );
 });
 
 test('校对诊断跨手牌和四家牌河检查可见牌上限', () => {

@@ -29,6 +29,7 @@ const recognitionState = {
 };
 const recognitionZoneLabels = {
   hand: '自家手牌',
+  'context.doraIndicators': '宝牌指示牌',
   'rivers.self': '自家牌河',
   'rivers.right': '下家牌河',
   'rivers.opposite': '对家牌河',
@@ -129,7 +130,7 @@ function recognitionTileMarkup(tile, zone) {
   return `<article class="recognition-tile${lowConfidence ? ' low-confidence' : ''}${tile.edited ? ' manually-edited' : ''}" data-id="${tile.id}" data-zone="${zone}">
     <div class="recognition-tile-face">
       <img src="./public/assets/tiles/${tileAssetCode(tile.code)}.png" alt="${tileNameForCode(tile.code)}" draggable="false" />
-      ${tile.code.startsWith('0') ? '<b class="red-five-badge">赤</b>' : ''}${badge}
+      ${tile.code.startsWith('0') ? '<b class="red-five-badge">赤</b>' : ''}${tile.sideways ? '<b class="sideways-tile-badge">立直</b>' : ''}${badge}
     </div>
     <select data-recognition-action="replace" aria-label="修改识别牌">${tileOptionMarkup(tile.code)}</select>
     <button type="button" data-recognition-action="remove" aria-label="删除这张牌">删除</button>
@@ -157,7 +158,7 @@ function overlayMarkup(tile, draft) {
   const boxWidth = Math.max(0, Math.min(100 - left, (width / draft.image.width) * 100));
   const boxHeight = Math.max(0, Math.min(100 - top, (height / draft.image.height) * 100));
   const low = !tile.edited && tile.confidence < LOW_CONFIDENCE_THRESHOLD;
-  return `<span class="recognition-box${low ? ' low' : ''}${tile.edited ? ' edited' : ''}" style="left:${left}%;top:${top}%;width:${boxWidth}%;height:${boxHeight}%" title="${tileNameForCode(tile.code)} ${Math.round(tile.confidence * 100)}%"><b>${tile.code}</b></span>`;
+  return `<span class="recognition-box${low ? ' low' : ''}${tile.edited ? ' edited' : ''}" style="left:${left}%;top:${top}%;width:${boxWidth}%;height:${boxHeight}%" title="${tileNameForCode(tile.code)} ${Math.round(tile.confidence * 100)}%${tile.sideways ? ' · 横置立直牌' : ''}"><b>${tile.code}${tile.sideways ? ' · 立' : ''}</b></span>`;
 }
 
 function renderRecognitionReview() {
@@ -165,10 +166,17 @@ function renderRecognitionReview() {
   if (!draft) return;
   const diagnostics = draftDiagnostics(draft);
   const allTiles = allDraftTiles(draft);
+  const riichiCount = OPPONENT_POSITIONS.filter(
+    (position) => draft.context.riichi[position],
+  ).length;
+  const doraCount = draft.context.doraIndicators.length;
+  const selfWindLabel = draft.context.selfWind
+    ? tileNameForCode(draft.context.selfWind)
+    : '待补充';
   $('#recognition-review').classList.remove('hidden');
   $('#recognition-review').setAttribute('aria-hidden', 'false');
   $('#recognition-preview').innerHTML = `<img src="${recognitionState.previewUrl}" alt="待校对的雀魂截图" />${allTiles.map((tile) => overlayMarkup(tile, draft)).join('')}`;
-  $('#recognition-metrics').innerHTML = `<span><b>${diagnostics.handCount}</b> 手牌</span><span><b>${diagnostics.totalCount}</b> 可见牌</span><span class="${diagnostics.lowConfidenceCount ? 'attention' : ''}"><b>${diagnostics.lowConfidenceCount}</b> 低置信度</span>`;
+  $('#recognition-metrics').innerHTML = `<span><b>${diagnostics.handCount}</b> 手牌</span><span><b>${diagnostics.totalCount}</b> 可见牌</span><span><b>${doraCount}</b> 宝牌指示</span><span><b>${selfWindLabel}</b> 自风</span><span><b>${riichiCount}</b> 对手立直</span><span class="${diagnostics.lowConfidenceCount ? 'attention' : ''}"><b>${diagnostics.lowConfidenceCount}</b> 低置信度</span>`;
 
   const localWarnings = [];
   if (![13, 14].includes(diagnostics.handCount)) {
@@ -184,6 +192,10 @@ function renderRecognitionReview() {
 
   $('#recognition-zones').innerHTML = [
     recognitionZoneMarkup('hand', draft.hand),
+    recognitionZoneMarkup(
+      'context.doraIndicators',
+      draft.context.doraIndicators,
+    ),
     recognitionZoneMarkup('rivers.self', draft.rivers.self),
     recognitionZoneMarkup('rivers.right', draft.rivers.right),
     recognitionZoneMarkup('rivers.opposite', draft.rivers.opposite),
@@ -252,6 +264,11 @@ function expectedHandCounts() {
 function applyRecognitionDraft() {
   const draft = recognitionState.draft;
   if (!draft) return;
+  const riichiCount = OPPONENT_POSITIONS.filter(
+    (position) => draft.context.riichi[position],
+  ).length;
+  const doraCount = draft.context.doraIndicators.length;
+  const selfWind = draft.context.selfWind;
   setRecognitionNotice();
   try {
     const diagnostics = draftDiagnostics(draft);
@@ -263,6 +280,7 @@ function applyRecognitionDraft() {
       throw new Error(`当前副露数量需要 ${expected[0]} 或 ${expected[1]} 张暗手，识别草稿为 ${draft.hand.length} 张`);
     }
     const hasExistingInput = state.hand.some(Boolean)
+      || $('#dora').value.trim()
       || $$('[data-river]').some((input) => input.value.trim());
     if (hasExistingInput && !window.confirm('确认用识别草稿替换当前手牌和四家牌河吗？')) return;
 
@@ -274,10 +292,20 @@ function applyRecognitionDraft() {
         .map((tile) => tile.code)
         .join(' ');
     }
+    $('#dora').value = draft.context.doraIndicators
+      .map((tile) => tile.code)
+      .join(' ');
+    if (selfWind) $('#seat-wind').value = selfWind;
+    for (const position of OPPONENT_POSITIONS) {
+      $(`[data-riichi="${position}"]`).checked = draft.context.riichi[position];
+    }
     renderHand();
     $('#results').classList.add('hidden');
     clearRecognitionResult({ keepNotice: true });
-    setRecognitionNotice('识别结果已导入。请补充副露、宝牌和立直状态后开始分析。', 'success');
+    setRecognitionNotice(
+      `识别结果已导入${doraCount ? `，包含 ${doraCount} 张宝牌指示牌` : ''}${selfWind ? `，自风为${tileNameForCode(selfWind)}` : ''}${riichiCount ? `，并填写 ${riichiCount} 家对手立直状态` : ''}。请核对后开始分析。`,
+      'success',
+    );
     $('.hand-stage').scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (error) {
     setRecognitionNotice(error.message);

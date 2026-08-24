@@ -24,6 +24,7 @@ class ExtractedTile:
     image: np.ndarray
     bbox: Rect
     status: Optional[str] = None
+    sideways: bool = False
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,87 @@ RIVER_REGIONS: Sequence[RiverRegion] = (
     RiverRegion("opposite", (307, 119, 185, 180), "180"),
     RiverRegion("left", (145, 275, 200, 235), "counterclockwise"),
 )
+
+
+class DoraIndicatorExtractor:
+    """Locate the revealed dora indicator in Mahjong Soul's top-left tray."""
+
+    ROI = (0.015, 0.015, 0.17, 0.18)
+
+    def extract(
+        self,
+        image: np.ndarray,
+        debug_dir: Optional[Path] = None,
+    ) -> List[ExtractedTile]:
+        if image is None or image.size == 0:
+            return []
+
+        image_height, image_width = image.shape[:2]
+        left = int(round(image_width * self.ROI[0]))
+        top = int(round(image_height * self.ROI[1]))
+        right = int(round(image_width * self.ROI[2]))
+        bottom = int(round(image_height * self.ROI[3]))
+        roi = image[top:bottom, left:right]
+        if roi.size == 0:
+            return []
+
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        white_face = cv2.inRange(hsv, (0, 0, 175), (180, 50, 255))
+        white_face = cv2.morphologyEx(
+            white_face,
+            cv2.MORPH_CLOSE,
+            np.ones((5, 5), dtype=np.uint8),
+        )
+        contours, _ = cv2.findContours(
+            white_face,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE,
+        )
+
+        candidates: List[Rect] = []
+        minimum_height = image_height * 0.05
+        maximum_height = image_height * 0.10
+        for contour in contours:
+            x, y, width, height = cv2.boundingRect(contour)
+            ratio = width / float(height)
+            if (
+                minimum_height <= height <= maximum_height
+                and 0.45 <= ratio <= 0.90
+                and width * height >= image_width * image_height * 0.0008
+            ):
+                candidates.append((x + left, y + top, width, height))
+
+        expected_x = image_width * 0.031
+        expected_y = image_height * 0.043
+        candidates.sort(
+            key=lambda box: abs(box[0] - expected_x) + abs(box[1] - expected_y)
+        )
+        selected = candidates[0] if candidates else None
+        extracted: List[ExtractedTile] = []
+        if selected is not None:
+            x, y, width, height = selected
+            crop = image[y:y + height, x:x + width]
+            if crop.size:
+                extracted.append(ExtractedTile(crop, selected))
+
+        if debug_dir is not None:
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            cv2.imwrite(str(debug_dir / "12_dora_region.png"), roi)
+            cv2.imwrite(str(debug_dir / "13_dora_mask.png"), white_face)
+            annotated = image.copy()
+            for box in candidates:
+                x, y, width, height = box
+                cv2.rectangle(
+                    annotated,
+                    (x, y),
+                    (x + width, y + height),
+                    (0, 255, 255) if box == selected else (0, 0, 255),
+                    2,
+                )
+            cv2.imwrite(str(debug_dir / "14_dora_annotated.png"), annotated)
+            if extracted:
+                cv2.imwrite(str(debug_dir / "15_dora_tile.png"), extracted[0].image)
+        return extracted
 
 
 class HandTileExtractor:
@@ -273,6 +355,7 @@ class RiverTileExtractor:
                 ExtractedTile(
                     image=tile.image,
                     bbox=self._part_box_to_warped(tile.bbox, region),
+                    sideways=tile.sideways,
                 )
                 for tile in part_tiles
             ]
@@ -289,9 +372,19 @@ class RiverTileExtractor:
                         part_annotated,
                         (x, y),
                         (x + width, y + height),
-                        (0, 255, 0),
+                        (0, 165, 255) if tile.sideways else (0, 255, 0),
                         2,
                     )
+                    if tile.sideways:
+                        cv2.putText(
+                            part_annotated,
+                            "riichi",
+                            (x, max(12, y - 3)),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.35,
+                            (0, 165, 255),
+                            1,
+                        )
                     cv2.imwrite(str(crop_dir / f"tile_{index:02d}.png"), tile.image)
                 cv2.imwrite(
                     str(debug_dir / f"21_river_{region.position}_annotated.png"),
@@ -342,7 +435,12 @@ class RiverTileExtractor:
 
         split_boxes: List[Rect] = []
         for x, y, width, height in filtered:
-            if width > standard_width * 1.6:
+            # A normal horizontal declaration tile is wider than a standard
+            # tile, but two touching upright tiles can produce a similarly
+            # wide contour. Preserve clearly landscape contours; only split a
+            # wide contour when its height still looks like an upright tile.
+            looks_sideways = width > height * 1.25
+            if width > standard_width * 1.6 and not looks_sideways:
                 tile_count = max(2, int(round(width / standard_width)))
                 tile_width = width / float(tile_count)
                 for index in range(tile_count):
@@ -357,15 +455,70 @@ class RiverTileExtractor:
         rows = self._group_rows(split_boxes)
         tiles: List[ExtractedTile] = []
         for row in rows:
-            for x, y, width, height in sorted(row, key=lambda box: box[0])[:6]:
+            ordered_row = sorted(row, key=lambda box: box[0])[:6]
+            sideways_indices = self._sideways_indices(ordered_row)
+            for index, (x, y, width, height) in enumerate(ordered_row):
                 crop = image[y:y + height, x:x + width]
                 if crop.size == 0:
                     continue
-                classifier_crop = crop
-                if width > height * 1.1:
-                    classifier_crop = cv2.rotate(crop, cv2.ROTATE_90_COUNTERCLOCKWISE)
-                tiles.append(ExtractedTile(classifier_crop, (x, y, width, height)))
+                sideways = index in sideways_indices
+                classifier_crop = (
+                    cv2.rotate(crop, cv2.ROTATE_90_CLOCKWISE)
+                    if sideways
+                    else crop
+                )
+                tiles.append(
+                    ExtractedTile(
+                        classifier_crop,
+                        (x, y, width, height),
+                        sideways=sideways,
+                    )
+                )
         return tiles
+
+    @staticmethod
+    def _sideways_indices(row: Sequence[Rect]) -> set[int]:
+        """Find horizontal declaration tiles using within-row geometry.
+
+        Mahjong Soul can visually clip a horizontal tile behind its neighbour,
+        leaving a nearly square contour rather than an obvious landscape one.
+        A square tile is therefore accepted only when the same row contains at
+        least two portrait-shaped reference tiles and it is both wider and
+        shorter than those references. This avoids marking an entire side-seat
+        river as riichi when perspective makes all of its crops nearly square.
+        """
+
+        if not row:
+            return set()
+        ratios = [width / float(height) for _, _, width, height in row]
+        portrait_indices = [
+            index for index, ratio in enumerate(ratios) if ratio <= 0.75
+        ]
+        portrait_width = (
+            median([row[index][2] for index in portrait_indices])
+            if portrait_indices
+            else 0.0
+        )
+        portrait_height = (
+            median([row[index][3] for index in portrait_indices])
+            if portrait_indices
+            else 0.0
+        )
+
+        sideways: set[int] = set()
+        for index, (_, _, width, height) in enumerate(row):
+            ratio = ratios[index]
+            if ratio > 1.25:
+                sideways.add(index)
+                continue
+            if (
+                len(portrait_indices) >= 2
+                and ratio >= 0.82
+                and width >= portrait_width * 1.18
+                and height <= portrait_height * 0.90
+            ):
+                sideways.add(index)
+        return sideways
 
     def _tile_back_mask(self, image: np.ndarray) -> np.ndarray:
         tolerance = 5
