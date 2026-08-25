@@ -100,6 +100,9 @@ tests/              Node.js 单元测试
 截图识别后端提供离线命令行和仅监听本机的 HTTP API，环境和用法见
 [`backend/README.md`](./backend/README.md)。网页支持截图选择、拖拽、粘贴、识别框预览和导入前人工校对；确认后才会替换当前手牌与四家牌河。
 
+正面手牌的本地模板库实验、人工确认样本收集方法和留出评估标准见
+[`docs/HAND_TILE_LIBRARY_EXPERIMENT.md`](./docs/HAND_TILE_LIBRARY_EXPERIMENT.md)。模板库可通过本地配置开关用于无透视的自家手牌，并在拒绝匹配时回退旧 CNN；牌河与副露分类不受影响。
+
 ## 后续路线
 
 - 雀魂牌谱链接/牌谱 JSON 导入

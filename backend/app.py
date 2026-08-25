@@ -41,6 +41,7 @@ def _recognition_status(code: str) -> int:
         "IMAGE_DIMENSIONS_EXCEEDED": 413,
         "TABLE_NOT_FOUND": 422,
         "MODEL_LOAD_FAILED": 503,
+        "HAND_TEMPLATE_LIBRARY_FAILED": 503,
     }.get(code, 500)
 
 
@@ -107,6 +108,11 @@ def create_app(
                 model_path=api_settings.model_path,
                 device=api_settings.device,
                 minimum_confidence=api_settings.minimum_confidence,
+                hand_template_library_dir=(
+                    api_settings.hand_template_library_dir
+                    if api_settings.hand_template_library_enabled
+                    else None
+                ),
             )
         except (RecognitionError, ValueError, RuntimeError) as exc:
             application.state.model_error = exc
@@ -217,6 +223,19 @@ def create_app(
                 "loaded": True,
                 "architecture": service.classifier.architecture,
                 "device": str(service.classifier.device),
+            },
+            "handTemplates": {
+                "enabled": service.hand_template_matcher is not None,
+                "samples": (
+                    len(service.hand_template_matcher.samples)
+                    if service.hand_template_matcher is not None
+                    else 0
+                ),
+                "classes": (
+                    len(service.hand_template_matcher.coverage())
+                    if service.hand_template_matcher is not None
+                    else 0
+                ),
             },
             "limits": {
                 "maxUploadBytes": api_settings.max_upload_bytes,

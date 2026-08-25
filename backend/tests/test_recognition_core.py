@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -13,8 +14,12 @@ from backend.recognition.classifier import (
     normalize_tile_code,
 )
 from backend.recognition.context_extractor import RoundWindDetector, SeatWindDetector
-from backend.recognition.schemas import RecognitionContext
-from backend.recognition.tile_extractor import DoraIndicatorExtractor, RiverTileExtractor
+from backend.recognition.schemas import BoundingBox, RecognitionContext, TilePrediction
+from backend.recognition.tile_extractor import (
+    DoraIndicatorExtractor,
+    HandTileExtractor,
+    RiverTileExtractor,
+)
 
 
 class RecognitionCoreTest(unittest.TestCase):
@@ -37,6 +42,22 @@ class RecognitionCoreTest(unittest.TestCase):
         self.assertEqual(settings.port, 8765)
         self.assertGreater(settings.max_upload_bytes, 0)
         self.assertGreater(settings.recognition_timeout_seconds, 0)
+
+    def test_hand_template_library_environment_flag(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "MAHJONG_HAND_TEMPLATE_LIBRARY_ENABLED": "true",
+                "MAHJONG_HAND_TEMPLATE_LIBRARY_DIR": "/tmp/hand-templates",
+            },
+            clear=True,
+        ):
+            settings = ApiSettings.from_environment()
+        self.assertTrue(settings.hand_template_library_enabled)
+        self.assertEqual(
+            settings.hand_template_library_dir,
+            Path("/tmp/hand-templates"),
+        )
 
     def test_sideways_tile_detection_uses_row_shape_outlier(self) -> None:
         clipped_riichi_row = [
@@ -74,6 +95,15 @@ class RecognitionCoreTest(unittest.TestCase):
         self.assertFalse(TileClassifier._should_use_center_crop_consensus("5p", 0.2))
         self.assertFalse(TileClassifier._should_use_center_crop_consensus("1p", 0.2))
 
+    def test_hand_extractor_keeps_row_with_one_raised_large_tile(self) -> None:
+        image = np.zeros((720, 1280, 3), dtype=np.uint8)
+        for index in range(12):
+            left = 250 + index * 64
+            cv2.rectangle(image, (left, 614), (left + 60, 714), (238, 238, 238), -1)
+        cv2.rectangle(image, (1018, 591), (1096, 714), (238, 238, 238), -1)
+        tiles = HandTileExtractor().extract(image)
+        self.assertEqual(len(tiles), 13)
+
     def test_recognition_context_serializes_riichi_for_all_seats(self) -> None:
         context = RecognitionContext(
             riichi={"right": True},
@@ -86,6 +116,23 @@ class RecognitionCoreTest(unittest.TestCase):
         )
         self.assertEqual(context.to_dict()["roundWind"], "1z")
         self.assertEqual(context.to_dict()["roundWindConfidence"], 0.842163)
+
+    def test_template_match_details_are_serialized(self) -> None:
+        tile = TilePrediction(
+            code="7p",
+            confidence=0.94,
+            bbox=BoundingBox(1, 2, 3, 4),
+            model_code="6p",
+            model_confidence=0.31,
+            decision_source="hand-template-library",
+            template_distance=0.0123,
+            template_margin=0.2456,
+            template_source="340",
+        )
+        recognition = tile.to_dict()["recognition"]
+        self.assertEqual(recognition["source"], "hand-template-library")
+        self.assertEqual(recognition["templateSource"], "340")
+        self.assertEqual(recognition["templateDistance"], 0.0123)
 
     def test_dora_indicator_extractor_finds_top_left_revealed_tile(self) -> None:
         image = np.zeros((1220, 2712, 3), dtype=np.uint8)

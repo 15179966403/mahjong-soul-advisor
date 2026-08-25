@@ -1,6 +1,6 @@
 {
   "name": "mahjong-soul-advisor",
-  "version": "1.5.0-alpha.2",
+  "version": "1.5.0-alpha.3",
   "private": true,
   "type": "module",
   "description": "基于日本立直麻将规则的手牌分析与切牌建议工具",
@@ -8,6 +8,8 @@
     "dev": "python3 scripts/dev.py",
     "test": "node --test",
     "test:backend": ".venv/bin/python -m unittest discover -s backend/tests -t .",
+    "hand:coverage": ".venv/bin/python -m backend.hand_library coverage",
+    "hand:evaluate": ".venv/bin/python -m backend.hand_library evaluate",
     "check": "python3 scripts/check.py",
     "serve": "python3 scripts/static_server.py"
   },

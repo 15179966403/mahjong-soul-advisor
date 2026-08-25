@@ -171,18 +171,24 @@ class HandTileExtractor:
             self._write_hand_debug(debug_dir, resized, binary, roi_start, [], [], [])
             return []
 
-        max_height = max(rect[3] for rect in raw_rectangles)
+        # A newly drawn tile can be raised and rendered about 20% larger than
+        # the other twelve tiles. Using the single maximum height as the row
+        # baseline then discards the entire normal row. The upper quartile is
+        # stable for a normal row while still admitting the enlarged tile.
+        reference_height = float(
+            np.percentile([rectangle[3] for rectangle in raw_rectangles], 75)
+        )
         max_bottom = max(rect[1] + rect[3] for rect in raw_rectangles)
         candidates: List[Rect] = []
         for rectangle in raw_rectangles:
             _, y, _, height = rectangle
-            if height < max_height * 0.85:
+            if height < reference_height * 0.85:
                 continue
             float_distance = max_bottom - (y + height)
-            is_full_size = height > max_height * 0.95
-            if not is_full_size and float_distance > max_height * 0.3:
+            is_full_size = height > reference_height * 0.95
+            if not is_full_size and float_distance > reference_height * 0.3:
                 continue
-            if is_full_size and float_distance > max_height * 0.8:
+            if is_full_size and float_distance > reference_height * 0.8:
                 continue
             candidates.append(rectangle)
 

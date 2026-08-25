@@ -11,6 +11,9 @@ from typing import Tuple
 
 BACKEND_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_PATH = BACKEND_DIR / "models" / "best_model.pt"
+DEFAULT_HAND_TEMPLATE_LIBRARY_DIR = (
+    BACKEND_DIR.parent / "datasets" / "private" / "hand_templates"
+)
 DEFAULT_ORIGINS = (
     "http://127.0.0.1:4173",
     "http://localhost:4173",
@@ -49,6 +52,18 @@ def _read_float(name: str, default: float) -> float:
         raise ValueError(f"{name} must be a number") from exc
 
 
+def _read_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be true or false")
+
+
 @dataclass(frozen=True)
 class ApiSettings:
     host: str = "127.0.0.1"
@@ -56,6 +71,8 @@ class ApiSettings:
     model_path: Path = DEFAULT_MODEL_PATH
     device: str = "auto"
     minimum_confidence: float = 0.65
+    hand_template_library_enabled: bool = False
+    hand_template_library_dir: Path = DEFAULT_HAND_TEMPLATE_LIBRARY_DIR
     max_upload_bytes: int = 12 * 1024 * 1024
     minimum_width: int = 640
     minimum_height: int = 360
@@ -106,6 +123,16 @@ class ApiSettings:
             ).expanduser(),
             device=os.environ.get("MAHJONG_DEVICE", "auto").lower(),
             minimum_confidence=_read_float("MAHJONG_MINIMUM_CONFIDENCE", 0.65),
+            hand_template_library_enabled=_read_bool(
+                "MAHJONG_HAND_TEMPLATE_LIBRARY_ENABLED",
+                False,
+            ),
+            hand_template_library_dir=Path(
+                os.environ.get(
+                    "MAHJONG_HAND_TEMPLATE_LIBRARY_DIR",
+                    str(DEFAULT_HAND_TEMPLATE_LIBRARY_DIR),
+                )
+            ).expanduser(),
             max_upload_bytes=_read_int(
                 "MAHJONG_MAX_UPLOAD_BYTES",
                 12 * 1024 * 1024,

@@ -30,6 +30,16 @@ def build_parser(settings: ApiSettings) -> argparse.ArgumentParser:
         help="单次识别超时秒数",
     )
     parser.add_argument(
+        "--hand-template-library",
+        type=Path,
+        default=(
+            settings.hand_template_library_dir
+            if settings.hand_template_library_enabled
+            else None
+        ),
+        help="启用正面手牌模板优先识别",
+    )
+    parser.add_argument(
         "--log-level",
         choices=("critical", "error", "warning", "info", "debug"),
         default="info",
@@ -47,6 +57,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         model_path=args.model,
         device=args.device,
         recognition_timeout_seconds=args.timeout,
+        hand_template_library_enabled=args.hand_template_library is not None,
+        hand_template_library_dir=(
+            args.hand_template_library
+            if args.hand_template_library is not None
+            else environment.hand_template_library_dir
+        ),
     ).validate()
     uvicorn.run(
         create_app(settings),

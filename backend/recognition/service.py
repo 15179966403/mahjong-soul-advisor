@@ -18,6 +18,7 @@ from .context_extractor import (
     RoundWindDetector,
     SeatWindDetector,
 )
+from .hand_templates import HandTemplateLibraryError, HandTemplateMatcher
 from .schemas import (
     BoundingBox,
     ImageInfo,
@@ -49,6 +50,7 @@ class RecognitionService:
         model_path: Path,
         device: str = "auto",
         minimum_confidence: float = 0.65,
+        hand_template_library_dir: Optional[Path] = None,
     ) -> None:
         if not 0.0 <= minimum_confidence <= 1.0:
             raise ValueError("minimum_confidence must be between 0 and 1")
@@ -59,10 +61,21 @@ class RecognitionService:
         self.dora_extractor = DoraIndicatorExtractor()
         self.hand_extractor = HandTileExtractor()
         self.river_extractor = RiverTileExtractor()
+        self.hand_template_matcher: Optional[HandTemplateMatcher] = None
         try:
             self.classifier = TileClassifier(model_path=model_path, device=device)
         except ModelLoadError as exc:
             raise RecognitionError("MODEL_LOAD_FAILED", str(exc)) from exc
+        if hand_template_library_dir is not None:
+            try:
+                self.hand_template_matcher = HandTemplateMatcher(
+                    hand_template_library_dir
+                )
+            except HandTemplateLibraryError as exc:
+                raise RecognitionError(
+                    "HAND_TEMPLATE_LIBRARY_FAILED",
+                    str(exc),
+                ) from exc
 
     def recognize_path(
         self,
@@ -129,7 +142,7 @@ class RecognitionService:
             for position in ("self", "right", "opposite", "left")
         }
         dora_indicators, rejected_count = self._classify_tiles(dora_crops)
-        hand, hand_rejected_count = self._classify_tiles(hand_crops)
+        hand, hand_rejected_count = self._classify_hand_tiles(hand_crops)
         rejected_count += hand_rejected_count
 
         image_height, image_width = image.shape[:2]
@@ -213,6 +226,53 @@ class RecognitionService:
                     circle_count=prediction.circle_count,
                     structure_confidence=prediction.structure_confidence,
                     structure_votes=prediction.structure_votes,
+                )
+            )
+        return accepted, rejected_count
+
+    def _classify_hand_tiles(
+        self,
+        crops: List[ExtractedTile],
+    ) -> Tuple[List[TilePrediction], int]:
+        if self.hand_template_matcher is None:
+            return self._classify_tiles(crops)
+
+        model_predictions = self.classifier.predict([crop.image for crop in crops])
+        accepted: List[TilePrediction] = []
+        rejected_count = 0
+        for crop, model_prediction in zip(crops, model_predictions):
+            template = self.hand_template_matcher.predict(crop.image)
+            if template.code is not None:
+                accepted.append(
+                    TilePrediction(
+                        code=template.code,
+                        confidence=template.confidence,
+                        bbox=BoundingBox.from_sequence(crop.bbox),
+                        status=crop.status,
+                        model_code=model_prediction.model_code,
+                        model_confidence=model_prediction.model_confidence,
+                        decision_source="hand-template-library",
+                        template_distance=template.distance,
+                        template_margin=template.margin,
+                        template_source=template.template_source,
+                    )
+                )
+                continue
+            if model_prediction.code is None:
+                rejected_count += 1
+                continue
+            accepted.append(
+                TilePrediction(
+                    code=model_prediction.code,
+                    confidence=model_prediction.confidence,
+                    bbox=BoundingBox.from_sequence(crop.bbox),
+                    status=crop.status,
+                    model_code=model_prediction.model_code,
+                    model_confidence=model_prediction.model_confidence,
+                    decision_source=model_prediction.decision_source,
+                    circle_count=model_prediction.circle_count,
+                    structure_confidence=model_prediction.structure_confidence,
+                    structure_votes=model_prediction.structure_votes,
                 )
             )
         return accepted, rejected_count

@@ -44,6 +44,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="低置信度告警阈值，默认 0.65",
     )
     parser.add_argument(
+        "--hand-template-library",
+        type=Path,
+        help="启用正面手牌模板优先识别，并在拒绝时回退 TileNet",
+    )
+    parser.add_argument(
         "--debug-dir",
         type=Path,
         help="保存牌桌定位、切割框和牌面切片的目录",
@@ -68,6 +73,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             model_path=args.model,
             device=args.device,
             minimum_confidence=args.minimum_confidence,
+            hand_template_library_dir=args.hand_template_library,
         )
         result = service.recognize_path(args.image, debug_dir=args.debug_dir)
         payload = result.to_dict()

@@ -171,6 +171,47 @@ python -m backend.collect_tiles /absolute/path/to/screenshot.jpeg \
 
 切片默认保存在被 Git 忽略的 `datasets/private/tiles/`。
 
+## 正面手牌模板库实验
+
+`experiment/hand-tile-library` 分支提供一个不依赖重新训练的手牌近邻匹配器。它只接受人工确认的正面手牌切片，通过亮度归一化、前景加权颜色距离和赤色面积校验匹配本地模板。模板默认放在被 Git 忽略的 `datasets/private/hand_templates/`。
+
+实验验收后已经以默认关闭的配置开关接入正式手牌链路。启用时，手牌优先使用模板库；模板距离过大或类别间距不足时自动回退 TileNet。宝牌、牌河和副露不使用模板库。
+
+```bash
+export MAHJONG_HAND_TEMPLATE_LIBRARY_ENABLED=true
+npm run dev
+```
+
+也可以只在单次离线识别中启用：
+
+```bash
+python -m backend.recognize /absolute/path/to/screenshot.jpeg \
+  --hand-template-library datasets/private/hand_templates
+```
+
+查看覆盖率和执行按截图来源隔离的留出评估：
+
+```bash
+npm run hand:coverage
+npm run hand:evaluate
+```
+
+识别一张截图的手牌：
+
+```bash
+python -m backend.hand_library match /absolute/path/to/screenshot.jpeg
+```
+
+复测已经进入模板库的截图时，加上 `--leave-source-out` 排除来自同一截图的模板，避免自我匹配：
+
+```bash
+python -m backend.hand_library match \
+  /absolute/path/to/323.jpeg \
+  --leave-source-out
+```
+
+完整实验设计和新增人工确认模板的方法见 [`docs/HAND_TILE_LIBRARY_EXPERIMENT.md`](../docs/HAND_TILE_LIBRARY_EXPERIMENT.md)。模板图片和私人截图不得提交到 Git。
+
 ## 训练空间模型
 
 训练代码使用 `4×4` 空间特征网格、保持宽高比的牌面输入、按类别分层划分和逐类别混淆统计。它可以复用旧模型的卷积层，但必须使用真实标注数据生成新的 checkpoint。

@@ -35,6 +35,9 @@ class TilePrediction:
     circle_count: Optional[int] = None
     structure_confidence: Optional[float] = None
     structure_votes: Sequence[int] = ()
+    template_distance: Optional[float] = None
+    template_margin: Optional[float] = None
+    template_source: Optional[str] = None
     sideways: bool = False
 
     def to_dict(self) -> dict:
@@ -47,12 +50,14 @@ class TilePrediction:
             payload["status"] = self.status
         if self.sideways:
             payload["sideways"] = True
-        if self.model_code is not None:
-            recognition = {
-                "source": self.decision_source,
-                "modelCode": self.model_code,
-                "modelConfidence": round(float(self.model_confidence or 0.0), 6),
-            }
+        if self.model_code is not None or self.template_distance is not None:
+            recognition = {"source": self.decision_source}
+            if self.model_code is not None:
+                recognition["modelCode"] = self.model_code
+                recognition["modelConfidence"] = round(
+                    float(self.model_confidence or 0.0),
+                    6,
+                )
             if self.circle_count is not None:
                 recognition["circleCount"] = self.circle_count
                 recognition["structureConfidence"] = round(
@@ -60,6 +65,17 @@ class TilePrediction:
                     6,
                 )
                 recognition["structureVotes"] = [int(vote) for vote in self.structure_votes]
+            if self.template_distance is not None:
+                recognition["templateDistance"] = round(
+                    float(self.template_distance),
+                    6,
+                )
+                recognition["templateMargin"] = round(
+                    float(self.template_margin or 0.0),
+                    6,
+                )
+                if self.template_source is not None:
+                    recognition["templateSource"] = self.template_source
             payload["recognition"] = recognition
         return payload
 
