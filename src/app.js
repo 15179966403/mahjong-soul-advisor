@@ -1,3 +1,4 @@
+import { PaipuReplayerUI } from './paipu/paipu_ui.js';
 import {
   TILE_CODES, TILE_NAMES, analyzeHand, countsToTiles, parseMeld,
   parseTileState, parseTiles, tileIndex, tileStateToNotation,
@@ -563,3 +564,53 @@ window.addEventListener('beforeunload', releaseRecognitionPreview);
 renderPicker();
 renderHand();
 checkRecognitionHealth();
+
+// ==================== Paipu Replay Mode Switcher & Integration ====================
+function switchMode(mode) {
+  if (mode === 'single') {
+    $('#tab-single').classList.add('active');
+    $('#tab-paipu').classList.remove('active');
+    $('#tab-single').setAttribute('aria-selected', 'true');
+    $('#tab-paipu').setAttribute('aria-selected', 'false');
+    $('#single-workspace').classList.remove('hidden');
+    $('#paipu-workspace').classList.add('hidden');
+  } else {
+    $('#tab-paipu').classList.add('active');
+    $('#tab-single').classList.remove('active');
+    $('#tab-paipu').setAttribute('aria-selected', 'true');
+    $('#tab-single').setAttribute('aria-selected', 'false');
+    $('#single-workspace').classList.add('hidden');
+    $('#results').classList.add('hidden');
+    $('#paipu-workspace').classList.remove('hidden');
+  }
+}
+
+$('#tab-single').addEventListener('click', () => switchMode('single'));
+$('#tab-paipu').addEventListener('click', () => switchMode('paipu'));
+
+const paipuReplayerUI = new PaipuReplayerUI({
+  onForkToWorkbench: (snapshot) => {
+    state.hand = [...snapshot.handCounts];
+    state.redFives = [...snapshot.redFives];
+    $('[data-river="self"]').value = snapshot.selfRiver;
+    $('[data-river="right"]').value = snapshot.rightRiver;
+    $('[data-river="opposite"]').value = snapshot.oppositeRiver;
+    $('[data-river="left"]').value = snapshot.leftRiver;
+
+    $('[data-riichi="right"]').checked = Boolean(snapshot.riichi.right);
+    $('[data-riichi="opposite"]').checked = Boolean(snapshot.riichi.opposite);
+    $('[data-riichi="left"]').checked = Boolean(snapshot.riichi.left);
+
+    $('#dora').value = snapshot.dora;
+    $('#melds').value = snapshot.melds;
+    if (snapshot.roundWind) $('#round-wind').value = snapshot.roundWind;
+    if (snapshot.seatWind) $('#seat-wind').value = snapshot.seatWind;
+
+    renderHand();
+    switchMode('single');
+    analyze();
+    $('#single-workspace').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+  onSwitchMode: (mode) => switchMode(mode),
+});
+

@@ -13,7 +13,17 @@ from typing import Callable, List, Sequence, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VENV_PYTHON = ROOT / ".venv" / "bin" / "python"
+def find_venv_python() -> Path:
+    for candidate in (
+        ROOT / ".venv" / "Scripts" / "python.exe",
+        ROOT / ".venv" / "bin" / "python",
+    ):
+        if candidate.is_file():
+            return candidate
+    return ROOT / ".venv" / "bin" / "python"
+
+
+VENV_PYTHON = find_venv_python()
 FRONTEND_URL = "http://127.0.0.1:4173/"
 HEALTH_URL = "http://127.0.0.1:8765/api/health"
 STARTUP_TIMEOUT_SECONDS = 60

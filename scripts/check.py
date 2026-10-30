@@ -5,15 +5,33 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Optional, Sequence
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VENV_PYTHON = ROOT / ".venv" / "bin" / "python"
+
+
+def find_venv_python() -> Optional[Path]:
+    for candidate in (
+        ROOT / ".venv" / "Scripts" / "python.exe",
+        ROOT / ".venv" / "bin" / "python",
+    ):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 JAVASCRIPT_FILES = (
     ROOT / "src" / "mahjong.js",
     ROOT / "src" / "recognition.js",
     ROOT / "src" / "app.js",
+    ROOT / "src" / "paipu" / "tile_converter.js",
+    ROOT / "src" / "paipu" / "tenhou_parser.js",
+    ROOT / "src" / "paipu" / "mjai_parser.js",
+    ROOT / "src" / "paipu" / "game_replayer.js",
+    ROOT / "src" / "paipu" / "majsoul_parser.js",
+    ROOT / "src" / "paipu" / "paipu_service.js",
+    ROOT / "src" / "paipu" / "paipu_ui.js",
 )
 
 
@@ -31,13 +49,14 @@ def compile_python_sources() -> None:
 
 
 def main() -> int:
-    if not VENV_PYTHON.is_file():
+    venv_python = find_venv_python()
+    if venv_python is None:
         print("缺少 .venv，请先按照 README 安装 Python 依赖。", file=sys.stderr)
         return 2
 
     run(("node", "--test"))
     run((
-        str(VENV_PYTHON),
+        str(venv_python),
         "-m",
         "unittest",
         "discover",

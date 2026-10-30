@@ -291,6 +291,63 @@ def create_app(
                 "截图识别超时，请稍后重试或换用分辨率更低的截图",
             ) from exc
 
+    @application.post("/api/paipu/fetch")
+    async def fetch_paipu(request: Request):
+        import json
+        import re
+        import urllib.error
+        import urllib.request
+
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise ApiError(400, "INVALID_REQUEST", "请求体必须为合法 JSON") from exc
+
+        uuid = str(body.get("uuid") or "").strip()
+        raw_url = str(body.get("rawUrl") or "").strip()
+
+        if not uuid and raw_url:
+            m = re.search(r"paipu=([0-9a-fA-F-]+)", raw_url) or re.search(
+                r"([0-9]{6}-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+                raw_url,
+            )
+            if m:
+                uuid = m.group(1)
+
+        if not uuid:
+            raise ApiError(400, "INVALID_UUID", "无法从输入中提取有效牌谱 UUID")
+
+        api_url = f"https://api.amae-koromo.com/api/v2/pl4/games/{uuid}"
+        req = urllib.request.Request(
+            api_url,
+            headers={
+                "User-Agent": "MahjongSoulAdvisor/1.5",
+                "Accept": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return data
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                raise ApiError(
+                    404,
+                    "PAIPU_NOT_FOUND",
+                    f"公开牌谱库中未找到该对局 (UUID: {uuid})。可能是友人场、赛事私有场或尚未收录，建议导出 JSON 后手动上传。",
+                ) from exc
+            raise ApiError(
+                exc.code,
+                "UPSTREAM_ERROR",
+                f"公开牌谱接口返回错误代码 {exc.code}",
+            ) from exc
+        except Exception as exc:
+            raise ApiError(
+                502,
+                "FETCH_FAILED",
+                f"请求公开牌谱服务异常: {exc}",
+            ) from exc
+
     return application
 
 

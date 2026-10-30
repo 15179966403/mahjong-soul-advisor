@@ -28,7 +28,14 @@
         </div>
       </section>
 
-      <section class="workspace">
+      <div class="mode-bar">
+        <div class="mode-switcher" role="tablist" aria-label="功能模式选择">
+          <button id="tab-single" class="mode-tab active" role="tab" aria-selected="true" type="button">🀄 单步手牌分析</button>
+          <button id="tab-paipu" class="mode-tab" role="tab" aria-selected="false" type="button">📜 对局牌谱复盘</button>
+        </div>
+      </div>
+
+      <section id="single-workspace" class="workspace">
         <div class="panel input-panel">
           <div class="panel-heading">
             <div><span class="step">01</span><h2>录入当前手牌</h2></div>
@@ -154,6 +161,185 @@
       </section>
 
       <section id="results" class="results hidden" aria-live="polite"></section>
+
+      <section id="paipu-workspace" class="paipu-workspace hidden">
+        <div class="panel paipu-import-panel">
+          <div class="panel-heading">
+            <div><span class="step">01</span><h2>导入牌谱对局</h2></div>
+            <button id="paipu-demo-btn" class="text-button" type="button">载入示例对局</button>
+          </div>
+          <p class="paipu-intro">
+            支持输入雀魂牌谱链接（URL）、上传天凤/雀魂/MJAI导出的 <code>.json</code> 文件或直接粘贴牌谱内容。对局数据全部在本地解析与重放。
+          </p>
+
+          <div class="paipu-import-grid">
+            <div class="paipu-url-box">
+              <label for="paipu-url-input"><span>雀魂牌谱链接 (URL) 或对局 UUID</span></label>
+              <div class="paipu-input-group">
+                <input id="paipu-url-input" placeholder="例：https://game.maj-soul.com/1/?paipu=210815-... 或 UUID" spellcheck="false" />
+                <button id="paipu-fetch-btn" class="primary-button" type="button">在线获取 <span>→</span></button>
+              </div>
+              <p class="paipu-url-hint">
+                💡 雀魂官方链接采用 WebSocket 协议加密；若在线拉取受限，推荐使用扩展导出 <code>.json</code> 文件导入（与 Mortal/NAGA 相同）。
+              </p>
+            </div>
+
+            <div class="paipu-file-box">
+              <span>本地牌谱文件</span>
+              <div class="paipu-file-actions">
+                <input id="paipu-file-input" type="file" accept=".json,.mjson,.txt" hidden />
+                <button id="paipu-choose-file-btn" class="secondary-button" type="button">📁 上传牌谱文件 (.json / .mjson)</button>
+                <button id="paipu-toggle-paste-btn" class="secondary-button" type="button">📋 粘贴 JSON 文本</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="paipu-paste-drawer" class="paipu-paste-drawer hidden">
+            <label for="paipu-paste-textarea"><span>粘贴天凤 JSON、MJAI 文本或雀魂导出内容</span></label>
+            <textarea id="paipu-paste-textarea" rows="4" placeholder="在此粘贴牌谱 JSON / MJAI 内容..."></textarea>
+            <div class="paipu-paste-actions">
+              <button id="paipu-apply-paste-btn" class="primary-button" type="button">解析并加载 <span>→</span></button>
+            </div>
+          </div>
+
+          <details class="paipu-help-details">
+            <summary>如何导出雀魂牌谱并在本工具复盘？（操作指引）</summary>
+            <div class="paipu-help-content">
+              <ol>
+                <li><b>安装浏览器插件（推荐）</b>：在 Chrome / Edge 安装扩展 <code>雀魂牌谱分析器</code> 或在油猴中安装 <code>雀魂牌谱导出</code>。</li>
+                <li><b>一键导出 JSON</b>：在雀魂网页版或客户端中打开该对局牌谱，点击右侧出现的「导出牌谱 (JSON)」按钮即可保存为 <code>.json</code> 文件。</li>
+                <li><b>载入复盘</b>：点击上方「📁 上传牌谱文件」选择刚保存的 <code>.json</code>，即可立即享受完整的半庄步进复盘与 AI 切牌比对！</li>
+              </ol>
+            </div>
+          </details>
+
+          <div id="paipu-error-container"></div>
+        </div>
+
+        <div id="paipu-player" class="paipu-player hidden">
+          <div class="panel paipu-match-header">
+            <div class="match-meta">
+              <span class="match-kicker">GAME RECORD REPLAY</span>
+              <h2 id="paipu-match-title">雀魂对局复盘</h2>
+              <p id="paipu-match-info" class="muted">四人南喰赤</p>
+            </div>
+            <div class="paipu-players-grid" id="paipu-players"></div>
+          </div>
+
+          <div class="panel paipu-controls-panel">
+            <div class="controls-top">
+              <div class="round-picker">
+                <label for="paipu-round-select"><span>选择局次</span></label>
+                <select id="paipu-round-select"></select>
+              </div>
+
+              <div class="playback-buttons">
+                <button id="paipu-btn-first" class="ctrl-btn" title="第一步 (局初)" type="button">|◀</button>
+                <button id="paipu-btn-prev-dec" class="ctrl-btn text-ctrl" title="上一打 (快捷跳转)" type="button">⏮ 上一打</button>
+                <button id="paipu-btn-prev" class="ctrl-btn" title="上一步 (←)" type="button">◀</button>
+                <button id="paipu-btn-play" class="ctrl-btn play-btn" title="自动播放/暂停 (空格)" type="button">▶ 播放</button>
+                <button id="paipu-btn-next" class="ctrl-btn" title="下一步 (→)" type="button">▶</button>
+                <button id="paipu-btn-next-dec" class="ctrl-btn text-ctrl" title="下一打 (快捷跳转)" type="button">下一打 ⏭</button>
+                <button id="paipu-btn-last" class="ctrl-btn" title="最后一步 (局末)" type="button">▶|</button>
+                <select id="paipu-speed-select" class="speed-select" title="播放速度">
+                  <option value="1500">0.7x</option>
+                  <option value="1000" selected>1.0x</option>
+                  <option value="500">2.0x</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="timeline-row">
+              <input type="range" id="paipu-step-slider" min="0" max="10" value="0" />
+              <div class="timeline-info">
+                <span id="paipu-step-badge" class="step-badge">第 1 / 1 步</span>
+                <span id="paipu-step-desc" class="step-desc">配牌完成</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="paipu-board-layout">
+            <div class="paipu-board-main">
+              <div class="panel table-context-bar">
+                <div class="context-item">
+                  <span>场况</span>
+                  <strong id="paipu-field-round">东 1 局</strong>
+                </div>
+                <div class="context-item">
+                  <span>本场/供托</span>
+                  <strong id="paipu-field-honba">0本场 · 0立直棒</strong>
+                </div>
+                <div class="context-item dora-item">
+                  <span>宝牌指示牌</span>
+                  <div id="paipu-field-dora" class="dora-tiles"></div>
+                </div>
+                <div class="context-item">
+                  <span>当前视角自风</span>
+                  <strong id="paipu-field-seatwind">东家</strong>
+                </div>
+              </div>
+
+              <div class="panel paipu-hand-panel">
+                <div class="hand-header">
+                  <div>
+                    <span class="step-tag">PERSPECTIVE HAND</span>
+                    <h3 id="paipu-hand-title">自家手牌</h3>
+                  </div>
+                  <span id="paipu-hand-count" class="muted">13 张</span>
+                </div>
+                <div id="paipu-hand-display" class="paipu-hand-display"></div>
+              </div>
+
+              <div class="panel paipu-rivers-panel">
+                <div class="section-title">
+                  <h3>四家牌河</h3>
+                  <span class="muted">高亮横置表示立直 · 阴影表示摸切 · 划线表示被鸣牌</span>
+                </div>
+                <div class="rivers-grid">
+                  <div class="river-card self">
+                    <div class="river-head"><b id="paipu-river-name-self">自家牌河</b><span id="paipu-river-riichi-self"></span></div>
+                    <div id="paipu-river-tiles-self" class="river-tiles"></div>
+                  </div>
+                  <div class="river-card right">
+                    <div class="river-head"><b id="paipu-river-name-right">下家牌河</b><span id="paipu-river-riichi-right"></span></div>
+                    <div id="paipu-river-tiles-right" class="river-tiles"></div>
+                  </div>
+                  <div class="river-card opp">
+                    <div class="river-head"><b id="paipu-river-name-opposite">对家牌河</b><span id="paipu-river-riichi-opposite"></span></div>
+                    <div id="paipu-river-tiles-opposite" class="river-tiles"></div>
+                  </div>
+                  <div class="river-card left">
+                    <div class="river-head"><b id="paipu-river-name-left">上家牌河</b><span id="paipu-river-riichi-left"></span></div>
+                    <div id="paipu-river-tiles-left" class="river-tiles"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel paipu-melds-panel" id="paipu-melds-panel">
+                <div class="section-title"><h3>各家副露</h3></div>
+                <div id="paipu-melds-grid" class="melds-grid"></div>
+              </div>
+            </div>
+
+            <div class="paipu-advisor-sidebar">
+              <div class="panel comparison-card" id="paipu-comparison-card">
+                <div class="card-label">AI 切牌决策比对</div>
+                <div id="paipu-comparison-content"></div>
+                <button id="paipu-fork-btn" class="secondary-button fork-btn" type="button">
+                  🛠️ 载入到单步编辑台推演 <span>→</span>
+                </button>
+              </div>
+
+              <div class="panel paipu-suggestions-panel" id="paipu-suggestions-panel">
+                <div class="section-head">
+                  <div><span>ADVISOR RANKING</span><h3>本巡切牌排序</h3></div>
+                </div>
+                <div id="paipu-suggestions-list" class="paipu-suggestions-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section class="principles">
         <div><span>01</span><h3>牌效优先</h3><p>比较每个切牌候选的向听数、有效牌种类和剩余枚数。</p></div>

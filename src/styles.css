@@ -124,3 +124,147 @@ footer { max-width: 1192px; margin: auto; padding: 25px 0 45px; display: flex; j
 @media (max-width: 620px) {
   .topbar { height: 58px; padding: 0 16px; }.brand span, .status { display: none; } main { padding: 0 12px 50px; }.hero { min-height: auto; padding: 45px 4px; }.hero h1 { font-size: 40px; }.lede { font-size: 14px; }.input-panel { padding: 18px 14px; }.recognition-panel { padding: 14px 10px; }.recognition-heading, .review-summary { align-items: flex-start; flex-direction: column; }.service-status { align-self: stretch; text-align: left; }.screenshot-dropzone { grid-template-columns: 34px 1fr; padding: 15px 12px; }.screenshot-dropzone .secondary-button { grid-column: 1 / -1; width: 100%; }.recognition-progress { grid-template-columns: 20px 1fr; }.recognition-progress .text-button { grid-column: 2; justify-self: start; }.recognition-metrics { width: 100%; }.recognition-metrics span { flex: 1; min-width: 0; }.recognition-actions { align-items: stretch; flex-direction: column; }.recognition-actions > p { order: -1; text-align: left; }.recognition-actions .secondary-button, .recognition-actions .primary-button { width: 100%; }.form-grid, .opponent-grid { grid-template-columns: 1fr; }.action-row { align-items: stretch; flex-direction: column; gap: 14px; }.primary-button { width: 100%; }.tile-row { grid-template-columns: 1fr; }.tile-row > div { gap: 3px; }.tile { width: calc((100vw - 62px) / 9); max-width: 38px; height: 55px; }.result-summary > div { padding: 18px; }.result-summary strong { font-size: 22px; }.winning-row { align-items: flex-start; flex-direction: column; }.suggestion { grid-template-columns: 28px 50px 1fr; gap: 8px; padding: 16px 10px; }.suggest-main .compact-tiles { display: none; }.stats { grid-column: 1 / -1; }.stats > div { flex: 1; }.principles { grid-template-columns: 1fr; } footer { margin: 0 12px; }.waiting-note { align-items: flex-start; flex-direction: column; gap: 8px; }
 }
+
+/* ==================== Paipu Replayer & Mode Tabs ==================== */
+.mode-bar { display: flex; justify-content: center; margin: 26px 0 12px; }
+.mode-switcher { display: inline-flex; gap: 4px; padding: 4px; background: #e8e4da; border-radius: 30px; box-shadow: inset 0 1px 3px rgba(0,0,0,.08); }
+.mode-tab { padding: 9px 22px; color: var(--muted); background: transparent; border: 0; border-radius: 26px; cursor: pointer; font-size: 13px; font-weight: 700; transition: all .15s ease; }
+.mode-tab:hover:not(.active) { color: var(--ink); background: rgba(255, 255, 255, .55); }
+.mode-tab.active { color: white; background: var(--green); box-shadow: 0 2px 8px rgba(22, 76, 61, .25); }
+
+.paipu-workspace { margin-top: 24px; display: grid; gap: 24px; }
+.paipu-import-panel { padding: 26px 30px; }
+.paipu-intro { margin: 12px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.paipu-import-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; align-items: end; }
+.paipu-url-box label span, .paipu-file-box > span, .paipu-paste-drawer label span { display: block; margin-bottom: 7px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.paipu-input-group { display: flex; gap: 8px; }
+.paipu-file-actions { display: flex; gap: 10px; }
+.paipu-file-actions .secondary-button { height: 42px; font-size: 12px; }
+.paipu-paste-drawer { margin-top: 16px; padding: 16px; background: #faf8f2; border: 1px solid var(--line); }
+.paipu-paste-drawer textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; font-family: monospace; font-size: 11px; line-height: 1.5; color: var(--ink); background: #fffdf8; border: 1px solid var(--line); outline: none; resize: vertical; }
+.paipu-paste-drawer textarea:focus { border-color: var(--green-2); }
+.paipu-paste-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
+
+.paipu-player { display: grid; gap: 20px; }
+.paipu-match-header { padding: 22px 26px; }
+.match-kicker { color: var(--gold); font-size: 10px; font-weight: 800; letter-spacing: .16em; }
+.match-meta h2 { margin: 4px 0 2px; font: 24px Georgia, "Songti SC", serif; }
+.paipu-players-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+.player-card { padding: 12px 14px; background: #faf8f2; border: 1px solid var(--line); cursor: pointer; transition: all .15s ease; border-radius: 2px; text-align: left; }
+.player-card:hover { border-color: var(--green-2); transform: translateY(-2px); }
+.player-card.active-perspective { background: #eef6f2; border: 2px solid var(--green); box-shadow: 0 4px 14px rgba(22, 76, 61, .15); }
+.player-card .p-seat { font-size: 11px; font-weight: 800; color: var(--green); display: flex; justify-content: space-between; }
+.player-card .p-tag { font-size: 9px; padding: 1px 5px; background: #d7e8df; border-radius: 2px; }
+.player-card .p-name { font-size: 14px; font-weight: 700; color: var(--ink); margin: 6px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-card .p-score { font: 18px Georgia, serif; color: var(--gold); }
+.player-card.active-perspective .p-seat { color: var(--green-2); }
+
+.paipu-controls-panel { padding: 18px 24px; }
+.controls-top { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; }
+.round-picker { display: flex; align-items: center; gap: 10px; }
+.round-picker label span { font-size: 11px; font-weight: 700; color: var(--muted); }
+.round-picker select { min-width: 170px; height: 36px; font-size: 12px; }
+.playback-buttons { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ctrl-btn { height: 36px; min-width: 36px; padding: 0 10px; color: var(--ink); background: #faf8f2; border: 1px solid var(--line); border-radius: 2px; cursor: pointer; font-size: 12px; font-weight: 700; transition: all .12s ease; }
+.ctrl-btn:hover { background: #e9f2ed; border-color: var(--green-2); }
+.ctrl-btn.play-btn { min-width: 76px; background: var(--green); color: white; border-color: var(--green); }
+.ctrl-btn.play-btn:hover { background: var(--green-2); }
+.ctrl-btn.text-ctrl { font-size: 11px; padding: 0 12px; background: #eeece4; }
+.speed-select { width: 72px; height: 36px; font-size: 11px; padding: 0 6px; }
+
+.timeline-row { margin-top: 14px; }
+#paipu-step-slider { width: 100%; height: 6px; cursor: pointer; accent-color: var(--green); }
+.timeline-info { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 12px; }
+.step-badge { font-weight: 800; color: var(--green); font-family: Inter, sans-serif; }
+.step-desc { color: var(--ink); background: #ebe6da; padding: 3px 10px; border-radius: 3px; font-size: 12px; font-weight: 600; }
+
+.paipu-board-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(320px, 1fr); gap: 24px; align-items: start; }
+.paipu-board-main { display: grid; gap: 18px; }
+.table-context-bar { display: flex; justify-content: space-between; align-items: center; padding: 16px 22px; background: var(--green); color: white; border-radius: 2px; }
+.context-item span { display: block; color: #d8b36d; font-size: 9px; letter-spacing: .15em; font-weight: 700; }
+.context-item strong { display: block; margin-top: 4px; font: 18px Georgia, "Songti SC", serif; }
+.dora-item .dora-tiles { display: flex; gap: 5px; margin-top: 5px; }
+.mini-dora { width: 28px; height: 40px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
+
+.paipu-hand-panel { padding: 20px 24px; }
+.hand-header { display: flex; justify-content: space-between; align-items: flex-end; }
+.step-tag { color: var(--gold); font-size: 9px; font-weight: 800; letter-spacing: .15em; }
+.hand-header h3 { margin: 3px 0 0; font: 20px Georgia, "Songti SC", serif; }
+.paipu-hand-display { display: flex; align-items: flex-end; gap: 5px; min-height: 86px; margin-top: 14px; padding: 14px 18px; background: #eeece4; border: 1px solid #e2ded3; flex-wrap: wrap; }
+.paipu-hand-tile { width: 44px; height: 64px; position: relative; display: inline-block; filter: drop-shadow(0 2px 2px rgba(68, 61, 46, .28)); }
+.paipu-hand-tile.tsumo-gap { margin-left: 18px; position: relative; }
+.paipu-hand-tile.tsumo-gap::before { content: '摸牌'; position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 9px; color: var(--green-2); font-weight: 800; white-space: nowrap; }
+.paipu-hand-tile img { width: 100%; height: 100%; object-fit: contain; }
+
+.paipu-rivers-panel { padding: 20px 24px; }
+.rivers-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+.river-card { padding: 12px; background: #faf8f2; border: 1px solid var(--line); }
+.river-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; }
+.river-tiles { display: flex; flex-wrap: wrap; gap: 4px; min-height: 48px; align-items: flex-start; }
+.river-tile { width: 28px; height: 40px; position: relative; filter: drop-shadow(0 1px 2px rgba(0,0,0,.15)); }
+.river-tile img { width: 100%; height: 100%; object-fit: contain; }
+.river-tile.tsumogiri { opacity: .72; filter: grayscale(.2) brightness(.92); }
+.river-tile.riichi { outline: 2px solid var(--gold); outline-offset: 1px; z-index: 2; border-radius: 2px; }
+.river-tile.called { opacity: .35; text-decoration: line-through; }
+.riichi-tag { padding: 2px 5px; color: white; background: var(--red); font-size: 9px; border-radius: 2px; }
+
+.paipu-melds-panel { padding: 18px 22px; }
+.melds-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+.meld-player { padding: 8px; background: #faf8f2; border: 1px solid var(--line); font-size: 11px; }
+.meld-player b { display: block; margin-bottom: 6px; color: var(--green); font-size: 11px; }
+.meld-group { display: inline-flex; gap: 2px; margin-right: 6px; padding: 3px; background: #eeece4; border-radius: 2px; }
+.meld-tile { width: 20px; height: 29px; object-fit: contain; }
+
+.paipu-advisor-sidebar { display: grid; gap: 18px; }
+.comparison-card { padding: 22px; background: var(--panel); border: 1px solid var(--line); }
+.decision-box { margin-top: 12px; }
+.decision-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+.compare-col { padding: 14px; border: 1px solid var(--line); background: #faf8f2; border-radius: 2px; text-align: center; }
+.compare-col.match { border-color: #36a277; background: #eef7f2; }
+.compare-col.mismatch { border-color: #d9822b; background: #fdf7f0; }
+.compare-title { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 8px; display: block; }
+.compare-tile { width: 44px; height: 64px; margin: 0 auto 8px; }
+.compare-tile img { width: 100%; height: 100%; object-fit: contain; }
+.status-pill { display: inline-block; padding: 3px 8px; font-size: 10px; font-weight: 800; border-radius: 2px; }
+.status-pill.green { background: #36a277; color: white; }
+.status-pill.amber { background: #d9822b; color: white; }
+.diff-note { font-size: 11px; color: #a05615; margin-top: 8px; line-height: 1.5; text-align: left; background: #fff5ea; padding: 8px 10px; border-left: 3px solid #d9822b; }
+.fork-btn { width: 100%; margin-top: 14px; height: 42px; font-weight: 700; font-size: 12px; }
+
+.paipu-suggestions-panel { padding: 20px; background: var(--panel); border: 1px solid var(--line); }
+.paipu-suggestions-list { margin-top: 12px; display: grid; gap: 8px; }
+.suggestion-mini { display: grid; grid-template-columns: 24px 38px 1fr auto; gap: 10px; align-items: center; padding: 10px; background: #faf8f2; border: 1px solid var(--line); }
+.suggestion-mini.best { border-left: 3px solid var(--gold); background: #fdfcf7; }
+.suggestion-mini .tile { width: 32px; height: 46px; }
+.mini-main h4 { margin: 0; font-size: 13px; font-weight: 700; }
+.mini-main p { margin: 2px 0 0; font-size: 10px; color: var(--muted); }
+.mini-stats { text-align: right; font-size: 11px; }
+.mini-stats b { color: var(--green); display: block; font-size: 14px; }
+.mini-stats span { color: var(--muted); font-size: 9px; }
+
+@media (max-width: 900px) {
+  .paipu-board-layout { grid-template-columns: 1fr; }
+  .paipu-import-grid { grid-template-columns: 1fr; }
+  .paipu-players-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 620px) {
+  .paipu-players-grid { grid-template-columns: 1fr; }
+  .rivers-grid { grid-template-columns: 1fr; }
+  .melds-grid { grid-template-columns: 1fr 1fr; }
+  .paipu-file-actions { flex-direction: column; }
+  .playback-buttons { justify-content: center; }
+}
+
+.paipu-url-hint { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.paipu-help-details { margin-top: 18px; padding: 12px 16px; background: #faf8f2; border: 1px solid var(--line); border-radius: 2px; }
+.paipu-help-details summary { color: var(--green); font-size: 12px; font-weight: 700; cursor: pointer; }
+.paipu-help-content { margin-top: 10px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+.paipu-help-content ol { margin: 8px 0 0; padding-left: 18px; }
+.paipu-help-content li + li { margin-top: 6px; }
+.paipu-help-content code { background: #eeece4; padding: 2px 5px; color: var(--green-2); border-radius: 2px; font-family: monospace; }
+
+.paipu-error-card { margin-top: 16px; padding: 16px 20px; background: #fdf6f5; border: 1px solid #f2c7c0; border-left: 4px solid var(--red); border-radius: 2px; }
+.paipu-error-card h4 { margin: 0 0 6px; color: var(--red); font-size: 13px; font-weight: 700; }
+.paipu-error-card p { margin: 0 0 12px; font-size: 12px; color: #5a3832; line-height: 1.6; }
+.paipu-error-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.paipu-error-actions .secondary-button { height: 34px; font-size: 11px; padding: 0 14px; }
